@@ -90,13 +90,17 @@ public class Handler extends AbstractHandler {
                     response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 } else {
                     final ServletOutputStream outputStream = response.getOutputStream();
-
+                    final SimpleFilterProvider filterProvider = new SimpleFilterProvider();
                     if (fields != null) {
-                        final SimpleFilterProvider filterProvider = new SimpleFilterProvider();
-                        filterProvider.addFilter("fields", SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                        log.debug("filtered output ({})", fields);
+                        filterProvider.addFilter("InstanceFilter",
+                                SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                    } else {
+                        log.debug("unfiltered output");
+                        filterProvider.addFilter("InstanceFilter",
+                                SimpleBeanPropertyFilter.serializeAllExcept());
+                    }
                         mapper.writer(filterProvider).writeValue(outputStream, servedInstances);
-                    } else
-                        mapper.writer().writeValue(outputStream, servedInstances);
                 }
             } catch (Exception e) {
                 final ServletOutputStream outputStream = response.getOutputStream();
