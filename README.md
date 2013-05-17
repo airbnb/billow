@@ -6,7 +6,7 @@ Query AWS data without API credentials. Get fast responses.
 
 ## Examples ##
 
-Those are a few illustrative examples; please look at
+Please look at
 [Billow in action](https://github.com/airbnb/billow/wiki/Billow-in-action) in the Wiki
 and start contributing!
 
