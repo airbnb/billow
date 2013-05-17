@@ -6,10 +6,13 @@ Query AWS data without API credentials. Get fast responses.
 
 ## Examples ##
 
+Those are a few illustrative examples; please look at
+[Billow in action](https://github.com/airbnb/billow/wiki/Billow-in-action) in the Wiki
+and start contributing!
+
     $ curl -sf billow.d.musta.ch/ec2 | jq '.[] | .az'
     $ curl -sf "billow.d.musta.ch/ec2?q=$(urlencode 'key=="igor"')" |jq '.[]|.daysOld' | statistik
     $ curl -sf 'billow.d.musta.ch/ec2?f=type' | jq -r '.[]|.type' | suc -r
-
 
 ## API ##
 
