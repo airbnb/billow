@@ -4,15 +4,15 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
-import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
-import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
-import com.amazonaws.services.identitymanagement.model.User;
+import com.amazonaws.services.identitymanagement.model.*;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
 
 @Slf4j
 @Data
@@ -24,7 +24,7 @@ public class AWSDatabase {
     AWSDatabase(AmazonEC2Client client, AmazonIdentityManagementClient iamClient) {
         log.info("Building AWS DB");
 
-        log.debug("Getting instances");
+        log.info("Getting instances");
         final ImmutableList.Builder<EC2Instance> builder = new ImmutableList.Builder<EC2Instance>();
         for (Reservation reservation : client.describeInstances().getReservations())
             for (Instance instance : reservation.getInstances())
@@ -37,13 +37,25 @@ public class AWSDatabase {
             }
         });
 
-        log.debug("Getting IAM keys");
+        log.info("Getting IAM keys");
         final ImmutableList.Builder<AccessKeyMetadata> keyMDBuilder = new ImmutableList.Builder<AccessKeyMetadata>();
-        for (User user : iamClient.listUsers().getUsers()) {
-            final ListAccessKeysRequest req = new ListAccessKeysRequest();
-            req.setUserName(user.getUserName());
-            keyMDBuilder.addAll(iamClient.listAccessKeys(req).getAccessKeyMetadata());
-        }
+
+        final ListUsersRequest listUsersRequest = new ListUsersRequest();
+        ListUsersResult listUsersResult;
+        do {
+            log.debug("Performing AMI request: {}", listUsersRequest);
+            listUsersResult = iamClient.listUsers(listUsersRequest);
+            final List<User> users = listUsersResult.getUsers();
+            log.debug("Found {} users", users.size());
+            for (User user : users) {
+                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
+                listAccessKeysRequest.setUserName(user.getUserName());
+                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
+                keyMDBuilder.addAll(accessKeyMetadata);
+            }
+            listUsersRequest.setMarker(listUsersResult.getMarker());
+        } while (listUsersResult.isTruncated());
+
         this.accessKeyMetadata = keyMDBuilder.build();
 
         log.info("Done building AWS DB");
