@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.quartz.*;
+import org.quartz.impl.StdSchedulerFactory;
 
 import javax.servlet.ServletContext;
 import java.io.IOException;
@@ -23,9 +25,13 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.io.Resources.getResource;
+import static org.quartz.JobBuilder.newJob;
+import static org.quartz.SimpleScheduleBuilder.simpleSchedule;
+import static org.quartz.TriggerBuilder.newTrigger;
 
 @Slf4j
 public class Main {
+
     private Main(Config config) throws Exception {
         log.info("Startup...");
 
@@ -42,14 +48,24 @@ public class Main {
 
         final Config awsConfig = config.getConfig("aws");
         final Long refreshRate = awsConfig.getMilliseconds("refreshRate");
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        final AWSDatabaseHolder ec2DatabaseHolder = new AWSDatabaseHolder(awsConfig);
-        final ScheduledFuture<?> updates = scheduler.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                ec2DatabaseHolder.rebuild();
-            }
-        }, refreshRate, refreshRate, TimeUnit.MILLISECONDS);
+
+        final AWSDatabaseHolder dbHolder = new AWSDatabaseHolder(awsConfig);
+
+        final Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
+        scheduler.start();
+
+        final SimpleTrigger trigger = newTrigger().
+                withIdentity(AWSDatabaseHolderRefreshJob.NAME).
+                startNow().
+                withSchedule(simpleSchedule().withIntervalInMilliseconds(refreshRate).repeatForever()).
+                build();
+
+        final JobDetail jobDetail = newJob(AWSDatabaseHolderRefreshJob.class).
+                withIdentity(AWSDatabaseHolderRefreshJob.NAME).
+                build();
+
+        scheduler.scheduleJob(jobDetail, trigger);
 
         log.info("Creating HTTP servers");
         final Server mainServer = new Server(config.getInt("mainPort"));
@@ -59,7 +75,7 @@ public class Main {
         configureConnectors(adminServer);
 
         log.info("Creating HTTP handlers");
-        final Handler mainHandler = new Handler(metricRegistry, ec2DatabaseHolder);
+        final Handler mainHandler = new Handler(metricRegistry, dbHolder);
         final InstrumentedHandler instrumentedHandler =
                 new InstrumentedHandler(metricRegistry);
         instrumentedHandler.setHandler(mainHandler);
@@ -85,6 +101,10 @@ public class Main {
 
         mainServer.join();
         adminServer.join();
+
+        log.info("Shutting down scheduler...");
+
+        scheduler.shutdown();
 
         log.info("We're done!");
     }

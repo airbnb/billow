@@ -5,6 +5,9 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.typesafe.config.Config;
 import lombok.Getter;
+import org.quartz.Job;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
 
 public class AWSDatabaseHolder {
     private final AmazonEC2Client ec2Client;
