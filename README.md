@@ -2,7 +2,7 @@
 
 ## Goal ##
 
-Query AWS data without API credentials. Get fast responses.
+Query AWS data without API credentials. Don't wait for a response.
 
 ## Examples ##
 
@@ -44,7 +44,40 @@ List IAM user credentials.
 
 ## Configuration ##
 
-We use Typesafe's config. Look at the `reference.conf` resource for the available parameters. To get quickly started, pass the following parameters to the JVM: `-Dbillow.aws.accessKeyId=HELLO -Dbillow.aws.secretKeyId=WoRld`.
+### AWS ###
+
+We strongly recommend creating a dedicated IAM user.
+
+Here is the required User Policy:
+
+    {
+      "Statement": [
+        { "Action": [
+            "ec2:DescribeRegions",
+            "ec2:DescribeInstanceAttribute",
+            "ec2:DescribeInstanceStatus",
+            "ec2:DescribeInstances",
+            "iam:GetUser",
+            "iam:ListUsers",
+            "iam:ListAccessKeys"
+          ],
+          "Effect": "Allow",
+          "Resource": [ "*" ]
+        }
+      ]
+    }
+
+
+### Local configuration ###
+
+We use Typesafe's config.
+Look at the `reference.conf` resource for the available parameters.
+To get quickly started, pass the following parameters to the JVM: `-Dbillow.aws.accessKeyId=HELLO -Dbillow.aws.secretKeyId=WoRld`.
+
+## Monitoring guide ##
+
+We expose an admin port offering metrics and health checks.
+See http://127.0.0.1:8081/ by default.
 
 ## References ##
 
