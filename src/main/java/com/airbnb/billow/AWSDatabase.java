@@ -31,9 +31,12 @@ public class AWSDatabase {
 
         for (AmazonEC2Client client : ec2Clients) {
             AWSDatabase.log.info("Getting EC2 reservations from {}", client);
-            for (Reservation reservation : client.describeInstances().getReservations())
+            final List<Reservation> reservations = client.describeInstances().getReservations();
+            AWSDatabase.log.debug("Found {} reservations", reservations.size());
+            for (Reservation reservation : reservations) {
                 for (Instance instance : reservation.getInstances())
                     builder.add(new EC2Instance(instance));
+            }
         }
 
         this.instances = builder.build();
