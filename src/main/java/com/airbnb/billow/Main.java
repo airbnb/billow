@@ -1,6 +1,7 @@
 package com.airbnb.billow;
 
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
 import com.codahale.metrics.jetty9.InstrumentedHandler;
 import com.codahale.metrics.servlets.AdminServlet;
@@ -64,6 +65,14 @@ public class Main {
                 build();
 
         scheduler.scheduleJob(jobDetail, trigger);
+
+        log.info("Creating age health check");
+        healthCheckRegistry.register("DB", new HealthCheck() {
+            @Override
+            protected Result check() throws Exception {
+                return dbHolder.healthy();
+            }
+        });
 
         log.info("Creating HTTP servers");
         final Server mainServer = new Server(config.getInt("mainPort"));

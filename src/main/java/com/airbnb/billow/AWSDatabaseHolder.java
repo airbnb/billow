@@ -4,6 +4,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
+import com.codahale.metrics.health.HealthCheck;
 import com.typesafe.config.Config;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -17,8 +18,11 @@ public class AWSDatabaseHolder {
     private final AmazonIdentityManagementClient iamClient;
     @Getter
     private AWSDatabase current;
+    private final long maxAgeInMs;
 
     public AWSDatabaseHolder(Config config) {
+        maxAgeInMs = config.getMilliseconds("maxAge");
+
         final BasicAWSCredentials awsCredentials = new BasicAWSCredentials(
                 config.getString("accessKeyId"),
                 config.getString("secretKeyId"));
@@ -43,5 +47,13 @@ public class AWSDatabaseHolder {
 
     public void rebuild() {
         current = new AWSDatabase(ec2Clients, iamClient);
+    }
+
+    public HealthCheck.Result healthy() {
+        final long ageInMs = current.getAgeInMs();
+        if (ageInMs < maxAgeInMs)
+            return HealthCheck.Result.healthy();
+        else
+            return HealthCheck.Result.unhealthy("DB too old: " + ageInMs + " ms");
     }
 }
