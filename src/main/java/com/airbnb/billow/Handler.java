@@ -100,7 +100,7 @@ public class Handler extends AbstractHandler {
                         filterProvider.addFilter("InstanceFilter",
                                 SimpleBeanPropertyFilter.serializeAllExcept());
                     }
-                        mapper.writer(filterProvider).writeValue(outputStream, servedInstances);
+                    mapper.writer(filterProvider).writeValue(outputStream, servedInstances);
                 }
             } catch (Exception e) {
                 final ServletOutputStream outputStream = response.getOutputStream();

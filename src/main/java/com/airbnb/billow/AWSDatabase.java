@@ -21,14 +21,18 @@ public class AWSDatabase {
     private final ImmutableList<AccessKeyMetadata> accessKeyMetadata;
     private final ImmutableMap<String, EC2Instance> instancesById;
 
-    AWSDatabase(AmazonEC2Client client, AmazonIdentityManagementClient iamClient) {
+    AWSDatabase(List<AmazonEC2Client> ec2Clients, AmazonIdentityManagementClient iamClient) {
         log.info("Building AWS DB");
 
         log.info("Getting instances");
         final ImmutableList.Builder<EC2Instance> builder = new ImmutableList.Builder<EC2Instance>();
-        for (Reservation reservation : client.describeInstances().getReservations())
-            for (Instance instance : reservation.getInstances())
-                builder.add(new EC2Instance(instance));
+
+        for (AmazonEC2Client client : ec2Clients) {
+            AWSDatabase.log.info("Getting EC2 reservations from {}", client);
+            for (Reservation reservation : client.describeInstances().getReservations())
+                for (Instance instance : reservation.getInstances())
+                    builder.add(new EC2Instance(instance));
+        }
 
         this.instances = builder.build();
         this.instancesById = Maps.uniqueIndex(this.instances, new Function<EC2Instance, String>() {

@@ -14,15 +14,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.quartz.*;
+import org.quartz.JobDetail;
+import org.quartz.Scheduler;
+import org.quartz.SimpleTrigger;
 import org.quartz.impl.StdSchedulerFactory;
 
 import javax.servlet.ServletContext;
 import java.io.IOException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.io.Resources.getResource;
 import static org.quartz.JobBuilder.newJob;
