@@ -1,6 +1,7 @@
 package com.airbnb.billow;
 
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
 import com.codahale.metrics.jetty9.InstrumentedHandler;
 import com.codahale.metrics.servlets.AdminServlet;
@@ -14,15 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.quartz.*;
+import org.quartz.JobDetail;
+import org.quartz.Scheduler;
+import org.quartz.SimpleTrigger;
 import org.quartz.impl.StdSchedulerFactory;
 
 import javax.servlet.ServletContext;
 import java.io.IOException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import static com.google.common.io.Resources.getResource;
 import static org.quartz.JobBuilder.newJob;
@@ -66,6 +65,14 @@ public class Main {
                 build();
 
         scheduler.scheduleJob(jobDetail, trigger);
+
+        log.info("Creating age health check");
+        healthCheckRegistry.register("DB", new HealthCheck() {
+            @Override
+            protected Result check() throws Exception {
+                return dbHolder.healthy();
+            }
+        });
 
         log.info("Creating HTTP servers");
         final Server mainServer = new Server(config.getInt("mainPort"));

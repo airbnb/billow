@@ -20,15 +20,24 @@ public class AWSDatabase {
     private final ImmutableList<EC2Instance> instances;
     private final ImmutableList<AccessKeyMetadata> accessKeyMetadata;
     private final ImmutableMap<String, EC2Instance> instancesById;
+    private final long timestamp;
 
-    AWSDatabase(AmazonEC2Client client, AmazonIdentityManagementClient iamClient) {
-        log.info("Building AWS DB");
+    AWSDatabase(List<AmazonEC2Client> ec2Clients, AmazonIdentityManagementClient iamClient) {
+        timestamp = System.currentTimeMillis();
+        log.info("Building AWS DB with timestamp {}", timestamp);
 
         log.info("Getting instances");
         final ImmutableList.Builder<EC2Instance> builder = new ImmutableList.Builder<EC2Instance>();
-        for (Reservation reservation : client.describeInstances().getReservations())
-            for (Instance instance : reservation.getInstances())
-                builder.add(new EC2Instance(instance));
+
+        for (AmazonEC2Client client : ec2Clients) {
+            AWSDatabase.log.info("Getting EC2 reservations from {}", client);
+            final List<Reservation> reservations = client.describeInstances().getReservations();
+            AWSDatabase.log.debug("Found {} reservations", reservations.size());
+            for (Reservation reservation : reservations) {
+                for (Instance instance : reservation.getInstances())
+                    builder.add(new EC2Instance(instance));
+            }
+        }
 
         this.instances = builder.build();
         this.instancesById = Maps.uniqueIndex(this.instances, new Function<EC2Instance, String>() {
@@ -59,5 +68,9 @@ public class AWSDatabase {
         this.accessKeyMetadata = keyMDBuilder.build();
 
         log.info("Done building AWS DB");
+    }
+
+    public long getAgeInMs() {
+        return System.currentTimeMillis() - getTimestamp();
     }
 }
