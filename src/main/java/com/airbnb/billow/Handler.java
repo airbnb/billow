@@ -41,12 +41,16 @@ public class Handler extends AbstractHandler {
         try {
             final Map<String, String[]> paramMap = request.getParameterMap();
 
+            final AWSDatabase current = dbHolder.getCurrent();
+
+            response.setHeader("Age", String.format("%.3f", (float) current.getAgeInMs() / 1000.0f));
+
             switch (target) {
                 case "/ec2":
-                    handleEC2(response, paramMap);
+                    handleEC2(response, paramMap, current);
                     break;
                 case "/iam":
-                    handleIAM(response);
+                    handleIAM(response, current);
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             }
@@ -55,11 +59,11 @@ public class Handler extends AbstractHandler {
         }
     }
 
-    private void handleIAM(HttpServletResponse response) {
+    private void handleIAM(HttpServletResponse response, AWSDatabase db) {
         try {
             mapper.writer().writeValue(
                     response.getOutputStream(),
-                    dbHolder.getCurrent().getAccessKeyMetadata());
+                    db.getAccessKeyMetadata());
         } catch (IOException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             log.error("I/O error handling IAM request", e);
@@ -67,7 +71,8 @@ public class Handler extends AbstractHandler {
     }
 
     private void handleEC2(HttpServletResponse response,
-                           Map<String, String[]> params) {
+                           Map<String, String[]> params,
+                           AWSDatabase db) {
         final String query = getQuery(params);
         final String sort = getSort(params);
         final int limit = getLimit(params);
@@ -77,7 +82,7 @@ public class Handler extends AbstractHandler {
 
         try {
             try {
-                final List<EC2Instance> queriedInstances = listInstancesFromQueryExpression(query);
+                final List<EC2Instance> queriedInstances = listInstancesFromQueryExpression(query, db);
                 final List<EC2Instance> sortedInstances = sortInstancesWithExpression(queriedInstances, sort);
                 final List<EC2Instance> servedInstances;
 
@@ -103,10 +108,10 @@ public class Handler extends AbstractHandler {
                     mapper.writer(filterProvider).writeValue(outputStream, servedInstances);
                 }
             } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 final ServletOutputStream outputStream = response.getOutputStream();
                 outputStream.print(e.toString());
                 outputStream.close();
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             }
         } catch (IOException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -114,9 +119,9 @@ public class Handler extends AbstractHandler {
         }
     }
 
-    private List<EC2Instance> listInstancesFromQueryExpression(String expression)
+    private List<EC2Instance> listInstancesFromQueryExpression(String expression, AWSDatabase db)
             throws OgnlException {
-        final List<EC2Instance> allInstances = dbHolder.getCurrent().getInstances();
+        final List<EC2Instance> allInstances = db.getInstances();
         if (expression == null)
             return allInstances;
 

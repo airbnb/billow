@@ -20,9 +20,11 @@ public class AWSDatabase {
     private final ImmutableList<EC2Instance> instances;
     private final ImmutableList<AccessKeyMetadata> accessKeyMetadata;
     private final ImmutableMap<String, EC2Instance> instancesById;
+    private final long timestamp;
 
     AWSDatabase(List<AmazonEC2Client> ec2Clients, AmazonIdentityManagementClient iamClient) {
-        log.info("Building AWS DB");
+        timestamp = System.currentTimeMillis();
+        log.info("Building AWS DB with timestamp {}", timestamp);
 
         log.info("Getting instances");
         final ImmutableList.Builder<EC2Instance> builder = new ImmutableList.Builder<EC2Instance>();
@@ -63,5 +65,9 @@ public class AWSDatabase {
         this.accessKeyMetadata = keyMDBuilder.build();
 
         log.info("Done building AWS DB");
+    }
+
+    public long getAgeInMs() {
+        return System.currentTimeMillis() - getTimestamp();
     }
 }
