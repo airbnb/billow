@@ -86,7 +86,7 @@ public class Handler extends AbstractHandler {
                 final List<EC2Instance> sortedInstances = sortInstancesWithExpression(queriedInstances, sort);
                 final List<EC2Instance> servedInstances;
 
-                if (limit >= 0)
+                if (limit >= 0 && sortedInstances.size() > limit)
                     servedInstances = sortedInstances.subList(0, limit);
                 else
                     servedInstances = sortedInstances;
