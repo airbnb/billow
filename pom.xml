@@ -8,6 +8,27 @@
     <artifactId>billow</artifactId>
     <version>1.4</version>
 
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+            <comments>A business-friendly OSS license</comments>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>Airbnb</name>
+        <url>http://nerds.airbnb.com/</url>
+    </organization>
+
+    <developers>
+        <developer>
+            <name>Pierre Carrier</name>
+            <email>pierre.carrier@airbnb.com</email>
+        </developer>
+    </developers>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws.version>1.5.6</aws.version>
