@@ -6,7 +6,7 @@
 
     <groupId>com.airbnb.billow</groupId>
     <artifactId>billow</artifactId>
-    <version>1.4</version>
+    <version>1.5</version>
 
     <licenses>
         <license>
