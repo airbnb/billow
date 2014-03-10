@@ -49,6 +49,8 @@ public class Handler extends AbstractHandler {
                 case "/ec2":
                     handleEC2(response, paramMap, current);
                     break;
+                case "/ec2/sg":
+                    handleEC2SG(response, current);
                 case "/iam":
                     handleIAM(response, current);
                 default:
@@ -56,6 +58,17 @@ public class Handler extends AbstractHandler {
             }
         } finally {
             baseRequest.setHandled(true);
+        }
+    }
+
+    private void handleEC2SG(HttpServletResponse response, AWSDatabase db) {
+        try {
+            mapper.writer().writeValue(
+                    response.getOutputStream(),
+                    db.getEc2SGs());
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("I/O error handling EC2 SG request", e);
         }
     }
 
