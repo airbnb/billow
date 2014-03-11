@@ -62,6 +62,7 @@ Here is the required User Policy:
             "ec2:DescribeInstanceAttribute",
             "ec2:DescribeInstanceStatus",
             "ec2:DescribeInstances",
+            "ec2:DescribeSecurityGroups",
             "iam:GetUser",
             "iam:ListUsers",
             "iam:ListAccessKeys"
