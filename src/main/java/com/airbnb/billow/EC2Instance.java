@@ -14,8 +14,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@JsonFilter("InstanceFilter")
+@JsonFilter(EC2Instance.INSTANCE_FILTER)
 public class EC2Instance {
+    public static final String INSTANCE_FILTER = "InstanceFilter";
+
     @Getter
     private final String id;
     @Getter
