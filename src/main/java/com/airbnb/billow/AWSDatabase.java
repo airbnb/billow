@@ -6,57 +6,103 @@ import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.SecurityGroup;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.*;
-import com.google.common.base.Function;
+import com.amazonaws.services.rds.AmazonRDSClient;
+import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
+import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableMultimap;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Data
 public class AWSDatabase {
-    private final ImmutableList<EC2Instance> instances;
-    private final ImmutableList<SecurityGroup> ec2SGs;
-    private final ImmutableList<AccessKeyMetadata> accessKeyMetadata;
-    private final ImmutableMap<String, EC2Instance> instancesById;
+    private final ImmutableMultimap<String, EC2Instance> ec2Instances;
+    private final ImmutableMultimap<String, DBInstance> rdsInstances;
+    private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
+    private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
 
-    AWSDatabase(List<AmazonEC2Client> ec2Clients, AmazonIdentityManagementClient iamClient) {
+    AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
+                final Map<String, AmazonRDSClient> rdsClients,
+                final AmazonIdentityManagementClient iamClient) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
 
-        log.info("Getting instances");
-        final ImmutableList.Builder<EC2Instance> ec2InstanceBuilder = new ImmutableList.Builder<EC2Instance>();
+        log.info("Getting EC2 instances");
+        final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
 
-        for (AmazonEC2Client client : ec2Clients) {
-            AWSDatabase.log.info("Getting EC2 reservations from {}", client);
+        /*
+         * EC2 Instances
+         */
+
+        for (Map.Entry<String, AmazonEC2Client> clientPair : ec2Clients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonEC2Client client = clientPair.getValue();
+
+            log.info("Getting EC2 reservations from {}", regionName);
+
             final List<Reservation> reservations = client.describeInstances().getReservations();
-            AWSDatabase.log.debug("Found {} reservations", reservations.size());
+            log.debug("Found {} reservations in {}", reservations.size(), regionName);
             for (Reservation reservation : reservations) {
                 for (Instance instance : reservation.getInstances())
-                    ec2InstanceBuilder.add(new EC2Instance(instance));
+                    ec2InstanceBuilder.putAll(regionName, new EC2Instance(instance));
             }
         }
+        this.ec2Instances = ec2InstanceBuilder.build();
 
-        this.instances = ec2InstanceBuilder.build();
-        this.instancesById = Maps.uniqueIndex(this.instances, new Function<EC2Instance, String>() {
-            public String apply(EC2Instance input) {
-                return input.getId();
-            }
-        });
+        /*
+         * EC2 security groups
+         */
 
         log.info("Getting EC2 security groups");
-        final ImmutableList.Builder<SecurityGroup> ec2SGbuilder = new ImmutableList.Builder<SecurityGroup>();
-        for (AmazonEC2Client ec2Client : ec2Clients) {
-            ec2SGbuilder.addAll(ec2Client.describeSecurityGroups().getSecurityGroups());
+        final ImmutableMultimap.Builder<String, SecurityGroup> ec2SGbuilder = new ImmutableMultimap.Builder<String, SecurityGroup>();
+        for (Map.Entry<String, AmazonEC2Client> clientPair : ec2Clients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonEC2Client client = clientPair.getValue();
+            final List<SecurityGroup> securityGroups = client.describeSecurityGroups().getSecurityGroups();
+            log.debug("Found {} security groups in {}", securityGroups.size(), regionName);
+            ec2SGbuilder.putAll(regionName, securityGroups);
         }
         this.ec2SGs = ec2SGbuilder.build();
 
+        /*
+         * RDS Instances
+         */
+
+        log.info("Getting RDS instances");
+        final ImmutableMultimap.Builder<String, DBInstance> rdsBuilder = new ImmutableMultimap.Builder<String, DBInstance>();
+
+        for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonRDSClient client = clientPair.getValue();
+
+            DescribeDBInstancesRequest rdsRequest = new DescribeDBInstancesRequest();
+            DescribeDBInstancesResult result;
+
+            log.info("Getting RDS instances from {}", regionName);
+
+            do {
+                log.debug("Performing RDS request: {}", rdsRequest);
+                result = client.describeDBInstances(rdsRequest);
+                final List<DBInstance> instances = result.getDBInstances();
+                log.debug("Found {} RDS instances", instances.size());
+                rdsBuilder.putAll(regionName, instances);
+                rdsRequest.setMarker(rdsRequest.getMarker());
+            } while (result.getMarker() != null);
+        }
+        this.rdsInstances = rdsBuilder.build();
+
+        /*
+         * IAM keys
+         */
+
         log.info("Getting IAM keys");
-        final ImmutableList.Builder<AccessKeyMetadata> keyMDBuilder = new ImmutableList.Builder<AccessKeyMetadata>();
+        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
@@ -69,12 +115,13 @@ public class AWSDatabase {
                 final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
                 listAccessKeysRequest.setUserName(user.getUserName());
                 final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
-                keyMDBuilder.addAll(accessKeyMetadata);
+
+                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
+                usersBuilder.add(userWithKeys);
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
         } while (listUsersResult.isTruncated());
-
-        this.accessKeyMetadata = keyMDBuilder.build();
+        this.iamUsers = usersBuilder.build();
 
         log.info("Done building AWS DB");
     }

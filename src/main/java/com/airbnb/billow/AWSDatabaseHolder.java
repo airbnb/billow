@@ -4,17 +4,22 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
+import com.amazonaws.services.rds.AmazonRDSClient;
 import com.codahale.metrics.health.HealthCheck;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class AWSDatabaseHolder {
-    private final List<AmazonEC2Client> ec2Clients;
+    private final Map<String, AmazonEC2Client> ec2Clients;
+    private final Map<String, AmazonRDSClient> rdsClients;
     private final AmazonIdentityManagementClient iamClient;
     @Getter
     private AWSDatabase current;
@@ -27,17 +32,23 @@ public class AWSDatabaseHolder {
                 config.getString("accessKeyId"),
                 config.getString("secretKeyId"));
 
-        final AmazonEC2Client bootstrapClient = new AmazonEC2Client(awsCredentials);
-        ec2Clients = new ArrayList<>();
+        final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentials);
+        ec2Clients = Maps.newHashMap();
+        rdsClients = Maps.newHashMap();
 
-        final List<Region> regions = bootstrapClient.describeRegions().getRegions();
+        final List<Region> regions = bootstrapEC2Client.describeRegions().getRegions();
         for (Region region : regions) {
+            final String regionName = region.getRegionName();
             final String endpoint = region.getEndpoint();
-            log.debug("Adding endpoint {} for region {}", endpoint, region);
+            log.debug("Adding region {}", region);
 
-            final AmazonEC2Client client = new AmazonEC2Client(awsCredentials);
-            client.setEndpoint(endpoint);
-            ec2Clients.add(client);
+            final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentials);
+            ec2Client.setEndpoint(endpoint);
+            ec2Clients.put(regionName, ec2Client);
+
+            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentials);
+            rdsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "rds."));
+            rdsClients.put(regionName, rdsClient);
         }
 
         this.iamClient = new AmazonIdentityManagementClient(awsCredentials);
@@ -46,7 +57,7 @@ public class AWSDatabaseHolder {
     }
 
     public void rebuild() {
-        current = new AWSDatabase(ec2Clients, iamClient);
+        current = new AWSDatabase(ec2Clients, rdsClients, iamClient);
     }
 
     public HealthCheck.Result healthy() {
@@ -55,5 +66,9 @@ public class AWSDatabaseHolder {
             return HealthCheck.Result.healthy();
         else
             return HealthCheck.Result.unhealthy("DB too old: " + ageInMs + " ms");
+    }
+
+    public long getCacheTimeInMs() {
+        return maxAgeInMs - current.getAgeInMs();
     }
 }

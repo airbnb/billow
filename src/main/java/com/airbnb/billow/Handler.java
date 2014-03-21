@@ -1,16 +1,25 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
+import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DBInstanceStatusInfo;
+import com.amazonaws.services.rds.model.PendingModifiedValues;
 import com.codahale.metrics.MetricRegistry;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
+import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.joda.JodaModule;
 import com.google.common.base.Splitter;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.net.HttpHeaders;
 import lombok.extern.slf4j.Slf4j;
 import ognl.Ognl;
 import ognl.OgnlException;
+import org.apache.http.entity.ContentType;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 
@@ -22,15 +31,49 @@ import java.util.*;
 
 @Slf4j
 public class Handler extends AbstractHandler {
+    public static final SimpleFilterProvider NOOP_INSTANCE_FILTER = new SimpleFilterProvider().addFilter(EC2Instance.INSTANCE_FILTER,
+            SimpleBeanPropertyFilter.serializeAllExcept());
     private final ObjectMapper mapper;
     private final MetricRegistry registry;
     private final AWSDatabaseHolder dbHolder;
+    private final long maxDBAgeInMs;
 
-    public Handler(MetricRegistry registry, AWSDatabaseHolder dbHolder) {
+    public static abstract class DBInstanceMixin extends DBInstance {
+        @JsonIgnore
+        @Override
+        public abstract Boolean isMultiAZ();
+
+        @JsonIgnore
+        @Override
+        public abstract Boolean isAutoMinorVersionUpgrade();
+
+        @JsonIgnore
+        @Override
+        public abstract Boolean isPubliclyAccessible();
+    }
+
+    public static abstract class PendingModifiedValuesMixin extends PendingModifiedValues {
+        @JsonIgnore
+        @Override
+        public abstract Boolean isMultiAZ();
+    }
+
+    public static abstract class DBInstanceStatusInfoMixin extends DBInstanceStatusInfo {
+        @JsonIgnore
+        @Override
+        public abstract Boolean isNormal();
+    }
+
+    public Handler(MetricRegistry registry, AWSDatabaseHolder dbHolder, long maxDBAgeInMs) {
         this.mapper = new ObjectMapper();
+        this.mapper.addMixInAnnotations(DBInstance.class, DBInstanceMixin.class);
+        this.mapper.addMixInAnnotations(PendingModifiedValues.class, PendingModifiedValuesMixin.class);
+        this.mapper.addMixInAnnotations(DBInstanceStatusInfo.class, DBInstanceStatusInfoMixin.class);
         this.mapper.registerModule(new JodaModule());
+        this.mapper.registerModule(new GuavaModule());
         this.registry = registry;
         this.dbHolder = dbHolder;
+        this.maxDBAgeInMs = maxDBAgeInMs;
     }
 
     @Override
@@ -43,82 +86,82 @@ public class Handler extends AbstractHandler {
 
             final AWSDatabase current = dbHolder.getCurrent();
 
-            response.setHeader("Age", String.format("%.3f", (float) current.getAgeInMs() / 1000.0f));
+            final long age = current.getAgeInMs();
+            final float ageInSeconds = (float) age / 1000.0f;
+            response.setHeader("Age", String.format("%.3f", ageInSeconds));
+            response.setHeader("Cache-Control", String.format("public, max-age=%d", dbHolder.getCacheTimeInMs() / 1000));
 
             switch (target) {
                 case "/ec2":
-                    handleEC2(response, paramMap, current);
+                    handleComplexEC2(response, paramMap, current);
+                    break;
+                case "/ec2/all":
+                    handleSimpleRequest(response, current.getEc2Instances());
+                    break;
+                case "/rds/all":
+                    handleSimpleRequest(response, current.getRdsInstances());
                     break;
                 case "/ec2/sg":
-                    handleEC2SG(response, current);
-                case "/iam":
-                    handleIAM(response, current);
+                    handleSimpleRequest(response, current.getEc2SGs());
+                    break;
+                case "/iam": // backwards compatibility with documented feature
+                    final ArrayList<AccessKeyMetadata> justKeys = Lists.<AccessKeyMetadata>newArrayList();
+                    for (IAMUserWithKeys userWithKeys : current.getIamUsers())
+                        justKeys.addAll(userWithKeys.getKeys());
+                    handleSimpleRequest(response, justKeys);
+                    break;
+                case "/iam/users":
+                    handleSimpleRequest(response, current.getIamUsers());
+                    break;
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                    break;
             }
         } finally {
             baseRequest.setHandled(true);
         }
     }
 
-    private void handleEC2SG(HttpServletResponse response, AWSDatabase db) {
+    private void handleSimpleRequest(HttpServletResponse response, Object o) {
         try {
-            mapper.writer().writeValue(
-                    response.getOutputStream(),
-                    db.getEc2SGs());
-        } catch (IOException e) {
+            response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+            mapper.writer(NOOP_INSTANCE_FILTER).writeValue(response.getOutputStream(), o);
+        } catch (Throwable e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            log.error("I/O error handling EC2 SG request", e);
+            log.error("Error handling request", e);
         }
     }
 
-    private void handleIAM(HttpServletResponse response, AWSDatabase db) {
-        try {
-            mapper.writer().writeValue(
-                    response.getOutputStream(),
-                    db.getAccessKeyMetadata());
-        } catch (IOException e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            log.error("I/O error handling IAM request", e);
-        }
-    }
-
-    private void handleEC2(HttpServletResponse response,
-                           Map<String, String[]> params,
-                           AWSDatabase db) {
+    private void handleComplexEC2(HttpServletResponse response,
+                                  Map<String, String[]> params,
+                                  AWSDatabase db) {
         final String query = getQuery(params);
         final String sort = getSort(params);
         final int limit = getLimit(params);
         final Set<String> fields = getFields(params);
 
-        response.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
 
         try {
             try {
-                final List<EC2Instance> queriedInstances = listInstancesFromQueryExpression(query, db);
-                final List<EC2Instance> sortedInstances = sortInstancesWithExpression(queriedInstances, sort);
-                final List<EC2Instance> servedInstances;
+                final Collection<EC2Instance> queriedInstances = listInstancesFromQueryExpression(query, db);
+                final Collection<EC2Instance> sortedInstances = sortInstancesWithExpression(queriedInstances, sort);
+                final Iterable<EC2Instance> servedInstances = Iterables.limit(sortedInstances, limit);
 
-                if (limit >= 0 && sortedInstances.size() > limit)
-                    servedInstances = sortedInstances.subList(0, limit);
-                else
-                    servedInstances = sortedInstances;
-
-                if (servedInstances.size() == 0) {
+                if (!(servedInstances.iterator().hasNext())) {
                     response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 } else {
                     final ServletOutputStream outputStream = response.getOutputStream();
-                    final SimpleFilterProvider filterProvider = new SimpleFilterProvider();
+                    final SimpleFilterProvider filterProvider;
                     if (fields != null) {
                         log.debug("filtered output ({})", fields);
-                        filterProvider.addFilter("InstanceFilter",
-                                SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                        filterProvider = new SimpleFilterProvider()
+                                .addFilter(EC2Instance.INSTANCE_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
                     } else {
                         log.debug("unfiltered output");
-                        filterProvider.addFilter("InstanceFilter",
-                                SimpleBeanPropertyFilter.serializeAllExcept());
+                        filterProvider = NOOP_INSTANCE_FILTER;
                     }
-                    mapper.writer(filterProvider).writeValue(outputStream, servedInstances);
+                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedInstances));
                 }
             } catch (Exception e) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -132,9 +175,9 @@ public class Handler extends AbstractHandler {
         }
     }
 
-    private List<EC2Instance> listInstancesFromQueryExpression(String expression, AWSDatabase db)
+    Collection<EC2Instance> listInstancesFromQueryExpression(final String expression, final AWSDatabase db)
             throws OgnlException {
-        final List<EC2Instance> allInstances = db.getInstances();
+        final Collection<EC2Instance> allInstances = db.getEc2Instances().values();
         if (expression == null)
             return allInstances;
 
@@ -150,7 +193,9 @@ public class Handler extends AbstractHandler {
         return instances;
     }
 
-    private List<EC2Instance> sortInstancesWithExpression(List<EC2Instance> instances, String expression) throws OgnlException {
+    Collection<EC2Instance> sortInstancesWithExpression(final Collection<EC2Instance> instances,
+                                                        final String expression)
+            throws OgnlException {
         if (expression == null)
             return instances;
 
@@ -203,7 +248,7 @@ public class Handler extends AbstractHandler {
         final String[] limits = params.get("limit");
         if (limits != null)
             return Integer.parseInt(limits[0]);
-        return -1;
+        return Integer.MAX_VALUE;
     }
 
     private Set<String> getFields(Map<String, String[]> params) {

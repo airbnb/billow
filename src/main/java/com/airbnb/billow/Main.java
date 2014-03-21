@@ -22,6 +22,7 @@ import org.quartz.impl.StdSchedulerFactory;
 
 import javax.servlet.ServletContext;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.io.Resources.getResource;
 import static org.quartz.JobBuilder.newJob;
@@ -46,7 +47,7 @@ public class Main {
         log.info("Creating database");
 
         final Config awsConfig = config.getConfig("aws");
-        final Long refreshRate = awsConfig.getMilliseconds("refreshRate");
+        final Long refreshRate = awsConfig.getDuration("refreshRate", TimeUnit.MILLISECONDS);
 
         final AWSDatabaseHolder dbHolder = new AWSDatabaseHolder(awsConfig);
 
@@ -82,7 +83,7 @@ public class Main {
         configureConnectors(adminServer);
 
         log.info("Creating HTTP handlers");
-        final Handler mainHandler = new Handler(metricRegistry, dbHolder);
+        final Handler mainHandler = new Handler(metricRegistry, dbHolder, refreshRate);
         final InstrumentedHandler instrumentedHandler =
                 new InstrumentedHandler(metricRegistry);
         instrumentedHandler.setHandler(mainHandler);
