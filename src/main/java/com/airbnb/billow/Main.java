@@ -98,8 +98,6 @@ public class Main {
         adminContext.setAttribute(HealthCheckServlet.HEALTH_CHECK_REGISTRY, healthCheckRegistry);
         adminServer.setHandler(adminHandler);
 
-        log.info("Creating health check");
-
         log.info("Starting HTTP servers");
 
         adminServer.start();
