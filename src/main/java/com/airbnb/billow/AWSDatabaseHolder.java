@@ -1,6 +1,8 @@
 package com.airbnb.billow;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
@@ -31,6 +33,9 @@ public class AWSDatabaseHolder {
                 config.getString("accessKeyId"),
                 config.getString("secretKeyId"));
 
+        final ClientConfiguration clientConfig = new ClientConfiguration();
+        clientConfig.setRetryPolicy(new RetryPolicy(null, null, config.getInt("maxErrorRetry"), true));
+
         final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentials);
         ec2Clients = Maps.newHashMap();
         rdsClients = Maps.newHashMap();
@@ -41,16 +46,16 @@ public class AWSDatabaseHolder {
             final String endpoint = region.getEndpoint();
             log.debug("Adding region {}", region);
 
-            final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentials);
+            final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentials, clientConfig);
             ec2Client.setEndpoint(endpoint);
             ec2Clients.put(regionName, ec2Client);
 
-            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentials);
+            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentials, clientConfig);
             rdsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "rds."));
             rdsClients.put(regionName, rdsClient);
         }
 
-        this.iamClient = new AmazonIdentityManagementClient(awsCredentials);
+        this.iamClient = new AmazonIdentityManagementClient(awsCredentials, clientConfig);
 
         rebuild();
     }
