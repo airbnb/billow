@@ -101,27 +101,27 @@ public class AWSDatabase {
          * IAM keys
          */
 
-        log.info("Getting IAM keys");
-        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
-
-        final ListUsersRequest listUsersRequest = new ListUsersRequest();
-        ListUsersResult listUsersResult;
-        do {
-            log.debug("Performing AMI request: {}", listUsersRequest);
-            listUsersResult = iamClient.listUsers(listUsersRequest);
-            final List<User> users = listUsersResult.getUsers();
-            log.debug("Found {} users", users.size());
-            for (User user : users) {
-                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
-                listAccessKeysRequest.setUserName(user.getUserName());
-                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
-
-                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
-                usersBuilder.add(userWithKeys);
-            }
-            listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());
-        this.iamUsers = usersBuilder.build();
+//        log.info("Getting IAM keys");
+//        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
+//
+//        final ListUsersRequest listUsersRequest = new ListUsersRequest();
+//        ListUsersResult listUsersResult;
+//        do {
+//            log.debug("Performing AMI request: {}", listUsersRequest);
+//            listUsersResult = iamClient.listUsers(listUsersRequest);
+//            final List<User> users = listUsersResult.getUsers();
+//            log.debug("Found {} users", users.size());
+//            for (User user : users) {
+//                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
+//                listAccessKeysRequest.setUserName(user.getUserName());
+//                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
+//
+//                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
+//                usersBuilder.add(userWithKeys);
+//            }
+//            listUsersRequest.setMarker(listUsersResult.getMarker());
+//        } while (listUsersResult.isTruncated());
+//        this.iamUsers = usersBuilder.build();
 
         log.info("Done building AWS DB");
     }
