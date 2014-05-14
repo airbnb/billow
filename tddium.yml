@@ -1,0 +1,20 @@
+:tddium:
+  :tests:
+    - env JAVA_HOME=/usr/lib/jvm/jre7-airbnb mvn -B test package
+    - clean_repo env JAVA_HOME=/usr/lib/jvm/jre8-airbnb mvn -B test
+  :hooks:
+    :pre_setup: |
+      if on_branch master
+      then
+        report_build_started billow
+      fi
+    :post_build: |
+      if on_branch master
+      then
+        if successful_build && upload_artifact billow target/billow-*.jar
+        then
+          report_build_status billow ok
+        else
+          report_build_status billow ko
+        fi
+      fi
