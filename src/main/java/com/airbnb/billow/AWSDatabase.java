@@ -107,7 +107,7 @@ public class AWSDatabase {
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
         do {
-            log.debug("Performing AMI request: {}", listUsersRequest);
+            log.debug("Performing IAM request: {}", listUsersRequest);
             listUsersResult = iamClient.listUsers(listUsersRequest);
             final List<User> users = listUsersResult.getUsers();
             log.debug("Found {} users", users.size());
