@@ -92,7 +92,7 @@ public class AWSDatabase {
                 final List<DBInstance> instances = result.getDBInstances();
                 log.debug("Found {} RDS instances", instances.size());
                 rdsBuilder.putAll(regionName, instances);
-                rdsRequest.setMarker(rdsRequest.getMarker());
+                rdsRequest.setMarker(result.getMarker());
             } while (result.getMarker() != null);
         }
         this.rdsInstances = rdsBuilder.build();
