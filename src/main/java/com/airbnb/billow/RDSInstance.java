@@ -113,7 +113,7 @@ public class RDSInstance {
         this.statusInfos = instance.getStatusInfos();
         this.vpcSecurityGroups = instance.getVpcSecurityGroups();
 
-        this.tags = new HashMap<>();
+        this.tags = new HashMap<>(tagList.size());
         for(Tag tag : tagList) {
             this.tags.put(tag.getKey(), tag.getValue());
         }

@@ -13,7 +13,6 @@ public class ARNGenerator {
     private final String accountNumber;
 
     ARNGenerator(final AmazonIdentityManagementClient iamClient) {
-        //this.accountNumber = userARN.split(":")[4];
         this.accountNumber = loadAccountNumber(iamClient);
     }
 
@@ -26,7 +25,7 @@ public class ARNGenerator {
         );
     }
 
-    private String loadAccountNumber(AmazonIdentityManagementClient iamClient) {
+    private static String loadAccountNumber(AmazonIdentityManagementClient iamClient) {
 
         /*
          * Unfortunately this appears to be the only way to get an account number
@@ -55,7 +54,7 @@ public class ARNGenerator {
         return userARN.split(":")[4];
     }
 
-    private String extractUserARNFromError(String errorMessage) {
+    private static String extractUserARNFromError(String errorMessage) {
         Pattern p = Pattern.compile("arn:aws:iam::\\d+:user");
         Matcher m = p.matcher(errorMessage);
 

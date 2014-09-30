@@ -92,9 +92,8 @@ public class AWSDatabase {
                 final List<DBInstance> instances = result.getDBInstances();
                 log.debug("Found {} RDS instances", instances.size());
                 for (DBInstance instance : instances) {
-                    ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest();
-
-                    tagsRequest.setResourceName(arnGenerator.rdsARN(regionName, instance));
+                    ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
+                            .withResourceName(arnGenerator.rdsARN(regionName, instance));
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
