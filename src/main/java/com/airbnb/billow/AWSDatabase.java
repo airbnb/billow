@@ -7,9 +7,7 @@ import com.amazonaws.services.ec2.model.SecurityGroup;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.*;
 import com.amazonaws.services.rds.AmazonRDSClient;
-import com.amazonaws.services.rds.model.DBInstance;
-import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
-import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
+import com.amazonaws.services.rds.model.*;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 import lombok.Data;
@@ -22,7 +20,7 @@ import java.util.Map;
 @Data
 public class AWSDatabase {
     private final ImmutableMultimap<String, EC2Instance> ec2Instances;
-    private final ImmutableMultimap<String, DBInstance> rdsInstances;
+    private final ImmutableMultimap<String, RDSInstance> rdsInstances;
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
@@ -32,6 +30,8 @@ public class AWSDatabase {
                 final AmazonIdentityManagementClient iamClient) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
+
+        final ARNGenerator arnGenerator = new ARNGenerator(iamClient);
 
         log.info("Getting EC2 instances");
         final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
@@ -75,7 +75,7 @@ public class AWSDatabase {
          */
 
         log.info("Getting RDS instances");
-        final ImmutableMultimap.Builder<String, DBInstance> rdsBuilder = new ImmutableMultimap.Builder<String, DBInstance>();
+        final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<String, RDSInstance>();
 
         for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
             final String regionName = clientPair.getKey();
@@ -91,7 +91,16 @@ public class AWSDatabase {
                 result = client.describeDBInstances(rdsRequest);
                 final List<DBInstance> instances = result.getDBInstances();
                 log.debug("Found {} RDS instances", instances.size());
-                rdsBuilder.putAll(regionName, instances);
+                for (DBInstance instance : instances) {
+                    ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest();
+
+                    tagsRequest.setResourceName(arnGenerator.rdsARN(regionName, instance));
+
+                    ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
+
+                    rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
+
+                }
                 rdsRequest.setMarker(result.getMarker());
             } while (result.getMarker() != null);
         }
