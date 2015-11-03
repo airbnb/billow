@@ -31,7 +31,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <aws.version>1.7.3</aws.version>
+        <aws.version>1.10.31</aws.version>
         <lombok.version>1.12.6</lombok.version>
         <guava.version>16.0.1</guava.version>
         <jetty.version>9.1.3.v20140225</jetty.version>
