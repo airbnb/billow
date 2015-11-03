@@ -3,6 +3,7 @@ package com.airbnb.billow;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
+import com.amazonaws.services.identitymanagement.model.GetUserRequest;
 import com.amazonaws.services.identitymanagement.model.GetUserResult;
 import com.amazonaws.services.rds.model.DBInstance;
 
@@ -33,7 +34,10 @@ public class ARNGenerator {
         String userARN = null;
 
         try {
-            GetUserResult getUserResult = iamClient.getUser();
+            final String USER_NAME = "MikeCurtis";
+            GetUserRequest getUserRequest = new GetUserRequest();
+            getUserRequest.setUserName(USER_NAME);
+            GetUserResult getUserResult = iamClient.getUser(getUserRequest);
             userARN = getUserResult.getUser().getArn();
         } catch(AmazonServiceException e) {
             // Access Denied
