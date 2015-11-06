@@ -10,6 +10,7 @@ import com.codahale.metrics.servlets.MetricsServlet;
 import com.google.common.base.Charsets;
 import com.google.common.io.Resources;
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.*;
@@ -118,6 +119,13 @@ public class Main {
     public static void main(String[] args) {
         try {
             final Config config = ConfigFactory.load().getConfig("billow");
+            try {
+                System.setProperty("aws.accessKeyId", config.getString("aws.accessKeyId"));
+                System.setProperty("aws.secretKey", config.getString("aws.secretKeyId"));
+            } catch (ConfigException.Missing _) {
+                System.clearProperty("aws.accessKeyId");
+                System.clearProperty("aws.secretKey");
+            }
             Main.log.debug("Loaded config: {}", config);
             new Main(config);
         } catch (Throwable t) {

@@ -39,8 +39,6 @@ public class AWSDatabase {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
 
-        final ARNGenerator arnGenerator = new ARNGenerator(iamClient);
-
         log.info("Getting EC2 instances");
         final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
 
@@ -79,6 +77,37 @@ public class AWSDatabase {
         this.ec2SGs = ec2SGbuilder.build();
 
         /*
+         * IAM keys
+         */
+
+        log.info("Getting IAM keys");
+        String accountNumber = ""; // we need this to describe RDS
+        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
+
+        final ListUsersRequest listUsersRequest = new ListUsersRequest();
+        ListUsersResult listUsersResult;
+        do {
+            log.debug("Performing IAM request: {}", listUsersRequest);
+            listUsersResult = iamClient.listUsers(listUsersRequest);
+            final List<User> users = listUsersResult.getUsers();
+            log.debug("Found {} users", users.size());
+            for (User user : users) {
+                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
+                listAccessKeysRequest.setUserName(user.getUserName());
+                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
+
+                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
+                usersBuilder.add(userWithKeys);
+
+                if (accountNumber.isEmpty()) {
+                    accountNumber = user.getArn().split(":")[4];
+                }
+            }
+            listUsersRequest.setMarker(listUsersResult.getMarker());
+        } while (listUsersResult.isTruncated());
+        this.iamUsers = usersBuilder.build();
+
+        /*
          * RDS Instances
          */
 
@@ -101,7 +130,7 @@ public class AWSDatabase {
                 log.debug("Found {} RDS instances", instances.size());
                 for (DBInstance instance : instances) {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
-                            .withResourceName(arnGenerator.rdsARN(regionName, instance));
+                            .withResourceName(rdsARN(regionName, accountNumber, instance));
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
@@ -113,36 +142,19 @@ public class AWSDatabase {
         }
         this.rdsInstances = rdsBuilder.build();
 
-        /*
-         * IAM keys
-         */
-
-        log.info("Getting IAM keys");
-        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
-
-        final ListUsersRequest listUsersRequest = new ListUsersRequest();
-        ListUsersResult listUsersResult;
-        do {
-            log.debug("Performing IAM request: {}", listUsersRequest);
-            listUsersResult = iamClient.listUsers(listUsersRequest);
-            final List<User> users = listUsersResult.getUsers();
-            log.debug("Found {} users", users.size());
-            for (User user : users) {
-                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
-                listAccessKeysRequest.setUserName(user.getUserName());
-                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
-
-                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
-                usersBuilder.add(userWithKeys);
-            }
-            listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());
-        this.iamUsers = usersBuilder.build();
-
         log.info("Done building AWS DB");
     }
 
     public long getAgeInMs() {
         return System.currentTimeMillis() - getTimestamp();
+    }
+
+    private String rdsARN(String regionName, String accountNumber, DBInstance instance) {
+        return String.format(
+                "arn:aws:rds:%s:%s:db:%s",
+                regionName,
+                accountNumber,
+                instance.getDBInstanceIdentifier()
+        );
     }
 }

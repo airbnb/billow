@@ -1,7 +1,7 @@
 package com.airbnb.billow;
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
@@ -29,12 +29,12 @@ public class AWSDatabaseHolder {
     public AWSDatabaseHolder(Config config) {
         maxAgeInMs = config.getDuration("maxAge", TimeUnit.MILLISECONDS);
 
-        final InstanceProfileCredentialsProvider awsCredentialProvider = new InstanceProfileCredentialsProvider();
+        final DefaultAWSCredentialsProviderChain awsCredentialsProviderChain = new DefaultAWSCredentialsProviderChain();
 
         final ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setRetryPolicy(new RetryPolicy(null, null, config.getInt("maxErrorRetry"), true));
 
-        final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentialProvider);
+        final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentialsProviderChain);
         ec2Clients = Maps.newHashMap();
         rdsClients = Maps.newHashMap();
 
@@ -44,16 +44,16 @@ public class AWSDatabaseHolder {
             final String endpoint = region.getEndpoint();
             log.debug("Adding region {}", region);
 
-            final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentialProvider, clientConfig);
+            final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentialsProviderChain, clientConfig);
             ec2Client.setEndpoint(endpoint);
             ec2Clients.put(regionName, ec2Client);
 
-            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentialProvider, clientConfig);
+            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentialsProviderChain, clientConfig);
             rdsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "rds."));
             rdsClients.put(regionName, rdsClient);
         }
 
-        this.iamClient = new AmazonIdentityManagementClient(awsCredentialProvider, clientConfig);
+        this.iamClient = new AmazonIdentityManagementClient(awsCredentialsProviderChain, clientConfig);
 
         rebuild();
     }
