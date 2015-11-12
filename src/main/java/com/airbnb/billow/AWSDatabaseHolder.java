@@ -25,6 +25,7 @@ public class AWSDatabaseHolder {
     @Getter
     private AWSDatabase current;
     private final long maxAgeInMs;
+    private final String awsAccountNumber;
 
     public AWSDatabaseHolder(Config config) {
         maxAgeInMs = config.getDuration("maxAge", TimeUnit.MILLISECONDS);
@@ -55,11 +56,17 @@ public class AWSDatabaseHolder {
 
         this.iamClient = new AmazonIdentityManagementClient(awsCredentialsProviderChain, clientConfig);
 
+        if (config.hasPath("accountNumber")) {
+            this.awsAccountNumber = config.getString("accountNumber");
+        } else {
+            this.awsAccountNumber = null;
+        }
+
         rebuild();
     }
 
     public void rebuild() {
-        current = new AWSDatabase(ec2Clients, rdsClients, iamClient);
+        current = new AWSDatabase(ec2Clients, rdsClients, iamClient, awsAccountNumber);
     }
 
     public HealthCheck.Result healthy() {

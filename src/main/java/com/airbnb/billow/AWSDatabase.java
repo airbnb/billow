@@ -32,15 +32,30 @@ public class AWSDatabase {
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
+    private String awsAccountNumber;
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
                 final AmazonIdentityManagementClient iamClient) {
+        this(ec2Clients, rdsClients, iamClient, null);
+    }
+
+    AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
+                final Map<String, AmazonRDSClient> rdsClients,
+                final AmazonIdentityManagementClient iamClient,
+                final String configAWSAccountNumber) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
 
         log.info("Getting EC2 instances");
         final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
+
+        if (configAWSAccountNumber == null) {
+            awsAccountNumber = "";
+        } else {
+            log.info("using account number '{}' from config", configAWSAccountNumber);
+            awsAccountNumber = configAWSAccountNumber;
+        }
 
         /*
          * EC2 Instances
@@ -81,7 +96,6 @@ public class AWSDatabase {
          */
 
         log.info("Getting IAM keys");
-        String accountNumber = ""; // we need this to describe RDS
         final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
@@ -99,8 +113,8 @@ public class AWSDatabase {
                 final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
                 usersBuilder.add(userWithKeys);
 
-                if (accountNumber.isEmpty()) {
-                    accountNumber = user.getArn().split(":")[4];
+                if (awsAccountNumber.isEmpty()) {
+                    awsAccountNumber = user.getArn().split(":")[4];
                 }
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
@@ -130,7 +144,7 @@ public class AWSDatabase {
                 log.debug("Found {} RDS instances", instances.size());
                 for (DBInstance instance : instances) {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
-                            .withResourceName(rdsARN(regionName, accountNumber, instance));
+                            .withResourceName(rdsARN(regionName, awsAccountNumber, instance));
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
