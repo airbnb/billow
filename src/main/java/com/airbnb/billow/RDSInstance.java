@@ -12,12 +12,16 @@ import com.amazonaws.services.rds.model.Tag;
 import com.amazonaws.services.rds.model.VpcSecurityGroupMembership;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
+@Slf4j
 @JsonFilter(RDSInstance.INSTANCE_FILTER)
 public class RDSInstance {
     public static final String INSTANCE_FILTER = "InstanceFilter";
@@ -88,6 +92,10 @@ public class RDSInstance {
     @Getter
     private final Map<String, String> tags;
 
+    @Getter
+    private final String privateIP;
+    @Getter
+    private final String hostname;
 
     public RDSInstance(DBInstance instance, List<Tag> tagList) {
         this.allocatedStorage = instance.getAllocatedStorage();
@@ -103,6 +111,13 @@ public class RDSInstance {
         this.dBSecurityGroups = instance.getDBSecurityGroups();
         this.dBSubnetGroup = instance.getDBSubnetGroup();
         this.endpoint = instance.getEndpoint();
+        if(this.endpoint != null) {
+          this.hostname = endpoint.getAddress();
+          this.privateIP = getPrivateIp(hostname);
+        } else {
+          this.hostname = null;
+          this.privateIP = null;
+        }
         this.engine = instance.getEngine();
         this.engineVersion = instance.getEngineVersion();
         this.instanceCreateTime = instance.getInstanceCreateTime();
@@ -126,6 +141,16 @@ public class RDSInstance {
         for(Tag tag : tagList) {
             this.tags.put(tag.getKey(), tag.getValue());
         }
+    }
+
+    private String getPrivateIp(String hostname) {
+        try {
+            InetAddress address = InetAddress.getByName(hostname); 
+            return address.getHostAddress().toString();
+        } catch (UnknownHostException e) {
+            log.error("{}", e);
+        } 
+        return null;
     }
 
 }
