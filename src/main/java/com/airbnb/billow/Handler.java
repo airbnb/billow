@@ -1,5 +1,6 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.rds.model.DBInstance;
 import com.amazonaws.services.rds.model.DBInstanceStatusInfo;
@@ -33,6 +34,8 @@ import java.util.*;
 public class Handler extends AbstractHandler {
     public static final SimpleFilterProvider NOOP_INSTANCE_FILTER = new SimpleFilterProvider().addFilter(EC2Instance.INSTANCE_FILTER,
             SimpleBeanPropertyFilter.serializeAllExcept());
+    public static final SimpleFilterProvider NOOP_TABLE_FILTER = new SimpleFilterProvider().addFilter(DynamoTable.Table_FILTER,
+        SimpleBeanPropertyFilter.serializeAllExcept());
     private final ObjectMapper mapper;
     private final MetricRegistry registry;
     private final AWSDatabaseHolder dbHolder;
@@ -99,7 +102,7 @@ public class Handler extends AbstractHandler {
                     handleSimpleRequest(response, current.getEc2Instances());
                     break;
                 case "/rds/all":
-                    handleSimpleRequest(response, current.getRdsInstances());
+                    // handleSimpleRequest(response, current.getRdsInstances());
                     break;
                 case "/ec2/sg":
                     handleSimpleRequest(response, current.getEc2SGs());
@@ -112,6 +115,9 @@ public class Handler extends AbstractHandler {
                     break;
                 case "/iam/users":
                     handleSimpleRequest(response, current.getIamUsers());
+                    break;
+                case "/dynamo":
+                    handleComlexDynamo(response, paramMap, current);
                     break;
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -131,6 +137,50 @@ public class Handler extends AbstractHandler {
             log.error("Error handling request", e);
         }
     }
+
+    private void handleComlexDynamo(HttpServletResponse response,
+                                    Map<String, String[]> params,
+                                    AWSDatabase db) {
+        final String query = getQuery(params);
+        final String sort = getSort(params);
+        final int limit = getLimit(params);
+        final Set<String> fields = getFields(params);
+
+        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+        try {
+            try {
+                final Collection<DynamoTable> queriedTables = listTablesFromQueryExpression(query, db);
+                final Collection<DynamoTable> sortedTables = sortTablesWithExpression(queriedTables, sort);
+                final Iterable<DynamoTable> servedTables = Iterables.limit(sortedTables, limit);
+
+                if (!(servedTables.iterator().hasNext())) {
+                    response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                } else {
+                    final ServletOutputStream outputStream = response.getOutputStream();
+                    final SimpleFilterProvider filterProvider;
+                    if (fields != null) {
+                        log.debug("filtered output ({})", fields);
+                        filterProvider = new SimpleFilterProvider()
+                            .addFilter(DynamoTable.Table_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                    } else {
+                        log.debug("unfiltered output");
+                        filterProvider = NOOP_TABLE_FILTER;
+                    }
+                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedTables));
+                }
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                final ServletOutputStream outputStream = response.getOutputStream();
+                outputStream.print(e.toString());
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("I/O error handling EC2 request", e);
+        }
+    }
+
+
 
     private void handleComplexEC2(HttpServletResponse response,
                                   Map<String, String[]> params,
@@ -173,6 +223,52 @@ public class Handler extends AbstractHandler {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             log.error("I/O error handling EC2 request", e);
         }
+    }
+
+    Collection<DynamoTable> listTablesFromQueryExpression(final String expression, final AWSDatabase db)
+        throws OgnlException {
+        final Collection<DynamoTable> allTables = db.getDynamoTables().values();
+        if (expression == null)
+            return allTables;
+
+        final Object compiled = Ognl.parseExpression(expression);
+        final List<DynamoTable> tables = new ArrayList<>();
+
+        for (DynamoTable table : allTables) {
+            final Object value = Ognl.getValue(compiled, tables);
+            if (value instanceof Boolean && (Boolean) value)
+                tables.add(table);
+        }
+
+        return tables;
+    }
+
+    Collection<DynamoTable> sortTablesWithExpression(final Collection<DynamoTable> tables,
+                                                        final String expression)
+        throws OgnlException {
+        if (expression == null)
+            return tables;
+
+        final Object compiled = Ognl.parseExpression(expression);
+
+        final ArrayList<DynamoTable> result = new ArrayList<>(tables);
+        Collections.sort(result, new Comparator<DynamoTable>() {
+            public int compare(DynamoTable o1, DynamoTable o2) {
+                try {
+                    final Object v1 = Ognl.getValue(compiled, o1);
+                    final Object v2 = Ognl.getValue(compiled, o2);
+
+                    if (v1 instanceof Comparable) {
+                        return ((Comparable) v1).compareTo(v2);
+                    }
+                } catch (OgnlException e) {
+                    return 0;
+                }
+                return 0;
+            }
+        });
+
+        return result;
     }
 
     Collection<EC2Instance> listInstancesFromQueryExpression(final String expression, final AWSDatabase db)

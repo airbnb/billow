@@ -43,6 +43,52 @@ Optional parameters:
   - `az,type`
   - `id,publicIP,launchTime`
 
+### /dynamo ###
+
+- `/dynamo/all`
+- `q` / `query`
+- `s` / `sort`
+    - `/dynamo?s=itemCount`
+- `l` / `limit`
+    - `/dynamo?l=10`
+- `f` / `field`
+    * `/dynamo?f=tableName,tableStatus`
+    * tableName
+    * attributeDefinitions
+    * tableStatus
+    * keySchema
+    * creationDateTime
+    * numberOfDecreasesToday
+    * readCapacityUnits
+    * writeCapacityUnits
+    * tableSizeBytes
+    * itemCount
+    * tableArn
+    * provisionedThroughput
+
+  Response
+  ```json
+  {
+      tableName: "user_join_test",
+      attributeDefinitions: "[{AttributeName: foo,AttributeType: S}]",
+      tableStatus: "ACTIVE",
+      keySchema: "[{AttributeName: foo,KeyType: HASH}]",
+      creationDateTime: 1442960756398,
+      numberOfDecreasesToday: 0,
+      readCapacityUnits: 1,
+      writeCapacityUnits: 1,
+      tableSizeBytes: 0,
+      itemCount: 0,
+      tableArn: "arn:aws:dynamodb:us-east-1:172631448019:table/user_join_test",
+      provisionedThroughput: "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
+  }
+  ```
+
+  ```
+  http://10.1.148.94:8080/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName
+  ```
+
+
 ### /iam ###
 
 List IAM user credentials.
@@ -73,6 +119,8 @@ Here is the required User Policy:
         }
       ]
     }
+
+
 
 
 ### Local configuration ###
