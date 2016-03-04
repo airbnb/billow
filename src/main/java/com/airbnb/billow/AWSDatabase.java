@@ -24,6 +24,10 @@ import com.amazonaws.services.identitymanagement.model.ListUsersResult;
 import com.amazonaws.services.identitymanagement.model.User;
 import com.amazonaws.services.rds.AmazonRDSClient;
 import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
+import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
+import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
+import com.amazonaws.services.rds.model.ListTagsForResourceResult;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 
@@ -32,7 +36,7 @@ import com.google.common.collect.ImmutableMultimap;
 public class AWSDatabase {
     private final ImmutableMultimap<String, EC2Instance> ec2Instances;
     private final ImmutableMultimap<String, DynamoTable> dynamoTables;
-    // private final ImmutableMultimap<String, RDSInstance> rdsInstances;
+    private final ImmutableMultimap<String, RDSInstance> rdsInstances;
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
@@ -153,7 +157,7 @@ public class AWSDatabase {
         /*
          * RDS Instances
          */
-        /**
+
         log.info("Getting RDS instances");
         final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<String, RDSInstance>();
 
@@ -174,7 +178,7 @@ public class AWSDatabase {
                 for (DBInstance instance : instances) {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
                             .withResourceName(rdsARN(regionName, awsAccountNumber, instance));
-
+                    log.info("resource name {}",tagsRequest.getResourceName());
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
                     rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
@@ -184,7 +188,7 @@ public class AWSDatabase {
             } while (result.getMarker() != null);
         }
         this.rdsInstances = rdsBuilder.build();
-        **/
+
 
         log.info("Done building AWS DB");
     }

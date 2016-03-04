@@ -69,18 +69,18 @@ Optional parameters:
   Response
   ```json
   {
-      tableName: "user_join_test",
-      attributeDefinitions: "[{AttributeName: foo,AttributeType: S}]",
-      tableStatus: "ACTIVE",
-      keySchema: "[{AttributeName: foo,KeyType: HASH}]",
-      creationDateTime: 1442960756398,
-      numberOfDecreasesToday: 0,
-      readCapacityUnits: 1,
-      writeCapacityUnits: 1,
-      tableSizeBytes: 0,
-      itemCount: 0,
-      tableArn: "arn:aws:dynamodb:us-east-1:172631448019:table/user_join_test",
-      provisionedThroughput: "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
+      "tableName": "user_join_test",
+      "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
+      "tableStatus": "ACTIVE",
+      "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
+      "creationDateTime": 1442960756398,
+      "numberOfDecreasesToday": 0,
+      "readCapacityUnits": 1,
+      "writeCapacityUnits": 1,
+      "tableSizeBytes": 0,
+      "itemCount": 0,
+      "tableArn": "arn:aws:dynamodb:us-east-1:172631448019:table/user_join_test",
+      "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
   }
   ```
 

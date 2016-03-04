@@ -15,7 +15,6 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.rds.AmazonRDSClient;
-import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.codahale.metrics.health.HealthCheck;
 import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
@@ -24,7 +23,6 @@ import com.typesafe.config.Config;
 public class AWSDatabaseHolder {
     private final Map<String, AmazonEC2Client> ec2Clients;
     private final Map<String, AmazonRDSClient> rdsClients;
-    private final Map<String, AmazonSQSClient> sqsClients;
     private final Map<String, AmazonDynamoDBClient> dynamoDBClients;
     private final AmazonIdentityManagementClient iamClient;
     @Getter
@@ -44,7 +42,6 @@ public class AWSDatabaseHolder {
         ec2Clients = Maps.newHashMap();
         rdsClients = Maps.newHashMap();
         dynamoDBClients = Maps.newHashMap();
-        sqsClients = Maps.newHashMap();
 
         final List<Region> ec2Regions = bootstrapEC2Client.describeRegions().getRegions();
         for (Region region : ec2Regions) {
