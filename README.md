@@ -65,8 +65,29 @@ Optional parameters:
   - `f=tableName,tableStatus`
   - `f=tableName`
 
-Example: show readCapacityUnits and tableName of all tables sorted by readCapacity. 
+Sample response (the ``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of ``provisionedThroughput`` which allows users to sort with these attributes):
+
+```
+{
+  "tableName": "user_table",
+  "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
+  "tableStatus": "ACTIVE",
+  "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
+  "creationDateTime": 14887890,
+  "numberOfDecreasesToday": 0,
+  "readCapacityUnits": 1,
+  "writeCapacityUnits": 1,
+  "tableSizeBytes": 0,
+  "itemCount": 0,
+  "tableArn": "arn:aws:dynamodb:us-east-1:xxxxx:table/user_table,
+  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
+}
+```
+
+Sample query: show readCapacityUnits and tableName of all tables sorted by readCapacity:
 ``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName``
+
+
 
 ### /dynamo/all  ###
 Search all tables in DynamoDB.
