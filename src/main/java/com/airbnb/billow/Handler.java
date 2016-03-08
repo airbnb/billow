@@ -117,7 +117,7 @@ public class Handler extends AbstractHandler {
                     handleSimpleRequest(response, current.getIamUsers());
                     break;
                 case "/dynamo":
-                    handleComlexDynamo(response, paramMap, current);
+                    handleComplexDynamo(response, paramMap, current);
                     break;
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -138,7 +138,7 @@ public class Handler extends AbstractHandler {
         }
     }
 
-    private void handleComlexDynamo(HttpServletResponse response,
+    private void handleComplexDynamo(HttpServletResponse response,
                                     Map<String, String[]> params,
                                     AWSDatabase db) {
         final String query = getQuery(params);
