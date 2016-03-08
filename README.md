@@ -43,51 +43,33 @@ Optional parameters:
   - `az,type`
   - `id,publicIP,launchTime`
 
+### /ec2/all ###
+Search all ec2 instances.
+
+### /rds/all ###
+Search all RDS resources.
+
 ### /dynamo ###
 
-- `/dynamo/all`
-- `q` / `query`
-- `s` / `sort`
-    - `/dynamo?s=itemCount`
-- `l` / `limit`
-    - `/dynamo?l=10`
-- `f` / `field`
-    * `/dynamo?f=tableName,tableStatus`
-    * tableName
-    * attributeDefinitions
-    * tableStatus
-    * keySchema
-    * creationDateTime
-    * numberOfDecreasesToday
-    * readCapacityUnits
-    * writeCapacityUnits
-    * tableSizeBytes
-    * itemCount
-    * tableArn
-    * provisionedThroughput
+Search tables in DynamoDB.
 
-  Response
-  ```json
-  {
-      "tableName": "user_join_test",
-      "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
-      "tableStatus": "ACTIVE",
-      "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
-      "creationDateTime": 1442960756398,
-      "numberOfDecreasesToday": 0,
-      "readCapacityUnits": 1,
-      "writeCapacityUnits": 1,
-      "tableSizeBytes": 0,
-      "itemCount": 0,
-      "tableArn": "arn:aws:dynamodb:us-east-1:172631448019:table/user_join_test",
-      "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
-  }
-  ```
+Optional parameters:
 
-  ```
-  http://10.1.148.94:8080/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName
-  ```
+- `q` / `query`: OGNL expression used to filter. Example:
+  - `id > 100 && readCapacityUnits > 10`
+- `s` / `sort`: OGNL expression used as a ``Comparable`` to sort (default to no ordering). Example:  
+  - `s=itemCount`
+- `l` / `limit`: maximum number of records to return. Example:
+  - `l=10`
+- `f` / `field`: comma-separated list of fields to display(defaults to all). Examples:
+  - `f=tableName,tableStatus`
+  - `f=tableName`
 
+Example: show readCapacityUnits and tableName of all tables sorted by readCapacity. 
+``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName``
+
+### /dynamo/all  ###
+Search all tables in DynamoDB.
 
 ### /iam ###
 

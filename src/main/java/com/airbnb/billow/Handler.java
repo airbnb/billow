@@ -102,7 +102,7 @@ public class Handler extends AbstractHandler {
                     handleSimpleRequest(response, current.getEc2Instances());
                     break;
                 case "/rds/all":
-                    // handleSimpleRequest(response, current.getRdsInstances());
+                    handleSimpleRequest(response, current.getRdsInstances());
                     break;
                 case "/ec2/sg":
                     handleSimpleRequest(response, current.getEc2SGs());
