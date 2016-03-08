@@ -178,7 +178,7 @@ public class AWSDatabase {
                 for (DBInstance instance : instances) {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
                             .withResourceName(rdsARN(regionName, awsAccountNumber, instance));
-                    log.info("resource name {}",tagsRequest.getResourceName());
+
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
                     rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
@@ -188,7 +188,6 @@ public class AWSDatabase {
             } while (result.getMarker() != null);
         }
         this.rdsInstances = rdsBuilder.build();
-
 
         log.info("Done building AWS DB");
     }

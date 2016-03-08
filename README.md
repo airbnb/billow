@@ -1,9 +1,11 @@
 # billow: inspect the cloud #
 
 **As-is:** This project is not actively maintained or supported.
-While updates may still be made and we welcome feedback, keep in mind we may not respond to pull requests or issues quickly.
+While updates may still be made and we welcome feedback, keep in mind we may not respond to pull
+requests or issues quickly.
 
-**Let us know!** If you fork this, or if you use it, or if it helps in anyway, we'd love to hear from you! opensource@airbnb.com
+**Let us know!** If you fork this, or if you use it, or if it helps in anyway, we'd love to hear
+from you! opensource@airbnb.com
 
 ## Goal ##
 
@@ -31,9 +33,10 @@ Optional parameters:
 
 - `q`/`query`: OGNL expression used to filter (defaults to all instances). Examples:
 
-  - `state=="running" && key=="pierre" && launchTime > 1365000000000`
+  - `state=="running"&&key=="pierre"&&launchTime>1365000000000`
 
-- `s`/`sort`: OGNL expression used as a `Comparable` to sort (default to no ordering). Example: `daysOld`.
+- `s`/`sort`: OGNL expression used as a `Comparable` to sort (default to no ordering).
+Example: `daysOld`.
 
 - `l`/`limit`: maximum number of records to return (defaults to none). Example: `10`.
 
@@ -56,7 +59,7 @@ Search tables in DynamoDB.
 Optional parameters:
 
 - `q` / `query`: OGNL expression used to filter. Example:
-  - `id > 100 && readCapacityUnits > 10`
+  - `id>100&&readCapacityUnits>10`
 - `s` / `sort`: OGNL expression used as a ``Comparable`` to sort (default to no ordering). Example:  
   - `s=itemCount`
 - `l` / `limit`: maximum number of records to return. Example:
@@ -65,7 +68,8 @@ Optional parameters:
   - `f=tableName,tableStatus`
   - `f=tableName`
 
-Sample response (the ``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of ``provisionedThroughput`` which allows users to sort with these attributes):
+Attributes(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
+  ``provisionedThroughput`` which allows users to sort with these attributes):
 
 ```
 {
@@ -80,13 +84,31 @@ Sample response (the ``readCapacityUnits`` and ``writeCapacityUnits`` are pulled
   "tableSizeBytes": 0,
   "itemCount": 0,
   "tableArn": "arn:aws:dynamodb:us-east-1:xxxxx:table/user_table,
-  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,WriteCapacityUnits: 1}"
+  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,
+    WriteCapacityUnits: 1}"
 }
 ```
 
 Sample query: show readCapacityUnits and tableName of all tables sorted by readCapacity:
-``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName``
+``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName&&l=3``
 
+Sample response:
+```
+[
+  {
+    tableName: "user_join_test",
+    readCapacityUnits: 1
+  },
+  {
+    tableName: "kincaidscore",
+    readCapacityUnits: 2
+  },
+  {
+    tableName: "two_factor",
+    readCapacityUnits: 3
+  }
+]
+```
 
 
 ### /dynamo/all  ###
