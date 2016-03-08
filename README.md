@@ -73,17 +73,17 @@ Attributes(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
 
 ```
 {
-  "tableName": "user_table",
+  "tableName": "table_foo",
   "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
   "tableStatus": "ACTIVE",
   "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
-  "creationDateTime": 14887890,
+  "creationDateTime":  1457475410,
   "numberOfDecreasesToday": 0,
   "readCapacityUnits": 1,
   "writeCapacityUnits": 1,
   "tableSizeBytes": 0,
   "itemCount": 0,
-  "tableArn": "arn:aws:dynamodb:us-east-1:xxxxx:table/user_table,
+  "tableArn": "arn:aws:dynamodb:us-east-1:user_id:table/table_foo,
   "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,
     WriteCapacityUnits: 1}"
 }
@@ -96,15 +96,15 @@ Sample response:
 ```
 [
   {
-    tableName: "user_join_test",
+    tableName: "table_foo",
     readCapacityUnits: 1
   },
   {
-    tableName: "kincaidscore",
+    tableName: "table_bar",
     readCapacityUnits: 2
   },
   {
-    tableName: "two_factor",
+    tableName: "table_baz",
     readCapacityUnits: 3
   }
 ]
