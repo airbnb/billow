@@ -3,6 +3,7 @@ package com.airbnb.billow;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,10 @@ import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.SecurityGroup;
+import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
+import com.amazonaws.services.elasticache.model.CacheCluster;
+import com.amazonaws.services.elasticache.model.DescribeReservedCacheNodesOfferingsResult;
+import com.amazonaws.services.elasticache.model.ReservedCacheNodesOffering;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
@@ -28,6 +33,8 @@ import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
 import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
 import com.amazonaws.services.rds.model.ListTagsForResourceResult;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.ListQueuesResult;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 
@@ -38,6 +45,10 @@ public class AWSDatabase {
     private final ImmutableMultimap<String, DynamoTable> dynamoTables;
     private final ImmutableMultimap<String, RDSInstance> rdsInstances;
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
+    private final ImmutableMultimap<String, SQSQueue> sqsQueues;
+    private final ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters;
+    private final ImmutableMultimap<String, ElasticacheReservedCacheNodesOffering>
+        elasticacheReservedCacheNodesOfferings;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
     private String awsAccountNumber;
@@ -45,27 +56,109 @@ public class AWSDatabase {
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
                 final Map<String, AmazonDynamoDBClient> dynamoClients,
+                final Map<String, AmazonSQSClient> sqsClients,
+                final Map<String, AmazonElastiCacheClient> elasticacheClients,
                 final AmazonIdentityManagementClient iamClient) {
-        this(ec2Clients, rdsClients, dynamoClients, iamClient, null);
+        this(ec2Clients, rdsClients, dynamoClients, sqsClients, elasticacheClients, iamClient, null);
     }
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
                 final Map<String, AmazonDynamoDBClient> dynamoClients,
+                final Map<String, AmazonSQSClient> sqsClients,
+                final Map<String, AmazonElastiCacheClient> elasticacheClients,
                 final AmazonIdentityManagementClient iamClient,
                 final String configAWSAccountNumber) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
 
         log.info("Getting EC2 instances");
-        final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
+        final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<>();
         final ImmutableMultimap.Builder<String, DynamoTable> dynamoTableBuilder = new ImmutableMultimap.Builder<>();
+        final ImmutableMultimap.Builder<String, SQSQueue> sqsQueueBuilder = new ImmutableMultimap.Builder<>();
+        final ImmutableMultimap.Builder<String, ElasticacheCluster> elasticacheClusterBuilder =
+            new ImmutableMultimap.Builder<>();
+        final ImmutableMultimap.Builder<String, ElasticacheReservedCacheNodesOffering> offeringBuilder = new
+            ImmutableMultimap.Builder<>();
+
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
             awsAccountNumber = configAWSAccountNumber;
         }
+
+        /**
+         * ElasticCache
+         */
+        for (Map.Entry<String, AmazonElastiCacheClient> clientPair : elasticacheClients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonElastiCacheClient client = clientPair.getValue();
+
+            DescribeReservedCacheNodesOfferingsResult offeringsResult = client.describeReservedCacheNodesOfferings();
+            List<ReservedCacheNodesOffering> offerings = offeringsResult.getReservedCacheNodesOfferings();
+            List<CacheCluster> clusters = client.describeCacheClusters().getCacheClusters();
+
+
+            log.info("Getting Elasticache from {}", regionName);
+            int cntOfferings = 0;
+            int cntClusters = 0;
+            for (ReservedCacheNodesOffering offering : offerings) {
+                offeringBuilder.putAll(regionName, new ElasticacheReservedCacheNodesOffering(offering));
+                cntOfferings++;
+            }
+
+            for (CacheCluster cluster : clusters) {
+                elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster));
+                cntClusters++;
+            }
+
+            log.debug("Found {} reserved cache node offerings and {} clusters in {}",
+                cntOfferings, cntClusters, regionName);
+        }
+        this.elasticacheClusters = elasticacheClusterBuilder.build();
+        this.elasticacheReservedCacheNodesOfferings = offeringBuilder.build();
+
+        /**
+         * SQS Queues
+         */
+
+        for (Map.Entry<String, AmazonSQSClient> clientPair : sqsClients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonSQSClient client = clientPair.getValue();
+            ListQueuesResult queues = client.listQueues();
+
+            log.info("Getting SQS from {}", regionName);
+            int cnt = 0;
+            for (String url : queues.getQueueUrls()) {
+                List<String> attrs = new ArrayList<>();
+                attrs.add("All");
+
+                Map<String, String> map = client.getQueueAttributes(url, attrs).getAttributes();
+                String approximateNumberOfMessagesDelayed = map.get(SQSQueue.ATTR_APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED);
+                String receiveMessageWaitTimeSeconds = map.get(SQSQueue.ATTR_RECEIVE_MESSAGE_WAIT_TIME_SECONDS);
+                String createdTimestamp = map.get(SQSQueue.ATTR_CREATED_TIMESTAMP);
+                String delaySeconds = map.get(SQSQueue.ATTR_DELAY_SECONDS);
+                String messageRetentionPeriod = map.get(SQSQueue.ATTR_MESSAGE_RETENTION_PERIOD);
+                String maximumMessageSize = map.get(SQSQueue.ATTR_MAXIMUM_MESSAGE_SIZE);
+                String visibilityTimeout = map.get(SQSQueue.ATTR_VISIBILITY_TIMEOUT);
+                String approximateNumberOfMessages = map.get(SQSQueue.ATTR_APPROXIMATE_NUMBER_OF_MESSAGES);
+                String lastModifiedTimestamp = map.get(SQSQueue.ATTR_LAST_MODIFIED_TIMESTAMP);
+                String queueArn = map.get(SQSQueue.ATTR_QUEUE_ARN);
+
+                SQSQueue queue = new SQSQueue(url, Long.valueOf(approximateNumberOfMessagesDelayed),
+                    Long.valueOf(receiveMessageWaitTimeSeconds), Long.valueOf(createdTimestamp),
+                    Long.valueOf(delaySeconds), Long.valueOf(messageRetentionPeriod), Long.valueOf(maximumMessageSize),
+                    Long.valueOf(visibilityTimeout), Long.valueOf(approximateNumberOfMessages),
+                    Long.valueOf(lastModifiedTimestamp), queueArn);
+
+                sqsQueueBuilder.putAll(regionName, queue);
+                cnt++;
+            }
+
+            log.debug("Found {} queues in {}", cnt, regionName);
+        }
+        this.sqsQueues = sqsQueueBuilder.build();
 
         /**
          * DynamoDB Tables

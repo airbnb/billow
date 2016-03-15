@@ -2,23 +2,13 @@ package com.airbnb.billow;
 
 import lombok.Getter;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.ec2.model.GroupIdentifier;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.StateReason;
-import com.amazonaws.services.ec2.model.Tag;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import org.joda.time.DateTime;
-import org.joda.time.Interval;
 
-@JsonFilter(DynamoTable.Table_FILTER)
+@JsonFilter(DynamoTable.TABLE_FILTER)
 public class DynamoTable {
-    public static final String Table_FILTER = "TableFilter";
+    public static final String TABLE_FILTER = "TableFilter";
 
     @Getter
     private final String tableName;

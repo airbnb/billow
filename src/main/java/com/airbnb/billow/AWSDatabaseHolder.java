@@ -13,8 +13,10 @@ import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
+import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.rds.AmazonRDSClient;
+import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.codahale.metrics.health.HealthCheck;
 import com.google.common.collect.Maps;
 import com.typesafe.config.Config;
@@ -24,6 +26,8 @@ public class AWSDatabaseHolder {
     private final Map<String, AmazonEC2Client> ec2Clients;
     private final Map<String, AmazonRDSClient> rdsClients;
     private final Map<String, AmazonDynamoDBClient> dynamoDBClients;
+    private final Map<String, AmazonSQSClient> sqsClients;
+    private final Map<String, AmazonElastiCacheClient> elasticacheClients;
     private final AmazonIdentityManagementClient iamClient;
     @Getter
     private AWSDatabase current;
@@ -41,7 +45,9 @@ public class AWSDatabaseHolder {
         final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentialsProviderChain);
         ec2Clients = Maps.newHashMap();
         rdsClients = Maps.newHashMap();
+        sqsClients = Maps.newHashMap();
         dynamoDBClients = Maps.newHashMap();
+        elasticacheClients = Maps.newHashMap();
 
         final List<Region> ec2Regions = bootstrapEC2Client.describeRegions().getRegions();
         for (Region region : ec2Regions) {
@@ -53,14 +59,23 @@ public class AWSDatabaseHolder {
             ec2Client.setEndpoint(endpoint);
             ec2Clients.put(regionName, ec2Client);
 
+            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentialsProviderChain, clientConfig);
+            rdsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "rds."));
+            rdsClients.put(regionName, rdsClient);
+
             final AmazonDynamoDBClient dynamoDBClient =
                 new AmazonDynamoDBClient(awsCredentialsProviderChain, clientConfig);
             dynamoDBClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "dynamodb."));
             dynamoDBClients.put(regionName, dynamoDBClient);
 
-            final AmazonRDSClient rdsClient = new AmazonRDSClient(awsCredentialsProviderChain, clientConfig);
-            rdsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "rds."));
-            rdsClients.put(regionName, rdsClient);
+            final AmazonSQSClient sqsClient = new AmazonSQSClient(awsCredentialsProviderChain, clientConfig);
+            sqsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "sqs."));
+            sqsClients.put(regionName, sqsClient);
+
+            final AmazonElastiCacheClient elastiCacheClient = new AmazonElastiCacheClient
+                (awsCredentialsProviderChain, clientConfig);
+            elastiCacheClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "elasticache."));
+            elasticacheClients.put(regionName, elastiCacheClient);
         }
 
         this.iamClient = new AmazonIdentityManagementClient(awsCredentialsProviderChain, clientConfig);
@@ -75,7 +90,8 @@ public class AWSDatabaseHolder {
     }
 
     public void rebuild() {
-        current = new AWSDatabase(ec2Clients, rdsClients, dynamoDBClients, iamClient, awsAccountNumber);
+        current = new AWSDatabase(ec2Clients, rdsClients, dynamoDBClients, sqsClients, elasticacheClients, iamClient,
+            awsAccountNumber);
     }
 
     public HealthCheck.Result healthy() {

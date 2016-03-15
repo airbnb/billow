@@ -25,69 +25,27 @@ and start contributing!
 
 *The API is in a very early stage. Everything is subject to change.*
 
-### /ec2 ###
-
-Search EC2 instances.
-
-Optional parameters:
-
-- `q`/`query`: OGNL expression used to filter (defaults to all instances). Examples:
-
-  - `state=="running"&&key=="pierre"&&launchTime>1365000000000`
-
-- `s`/`sort`: OGNL expression used as a `Comparable` to sort (default to no ordering).
-Example: `daysOld`.
-
-- `l`/`limit`: maximum number of records to return (defaults to none). Example: `10`.
-
-- `f`/`fields`: comma-separated list of fields to display (defaults to all). Examples:
-
-  - `type`
-  - `az,type`
-  - `id,publicIP,launchTime`
 
 ### /ec2/all ###
 Search all ec2 instances.
 
+### /ec2/sg ###
+Get ec2 security groups.
+
 ### /rds/all ###
 Search all RDS resources.
 
-### /dynamo ###
-
-Search tables in DynamoDB.
-
-Optional parameters:
-
+### Optional parameters ###
+The `ec2`, `dynamo`, `sqs` and `elasticache` queries support following optional parameters:
 - `q` / `query`: OGNL expression used to filter. Example:
   - `id>100&&readCapacityUnits>10`
-- `s` / `sort`: OGNL expression used as a ``Comparable`` to sort (default to no ordering). Example:  
+- `s` / `sort`: OGNL expression used as a ``Comparable`` to sort (default to no ordering). Example:
   - `s=itemCount`
 - `l` / `limit`: maximum number of records to return. Example:
   - `l=10`
 - `f` / `field`: comma-separated list of fields to display(defaults to all). Examples:
   - `f=tableName,tableStatus`
   - `f=tableName`
-
-Attributes(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
-  ``provisionedThroughput`` which allows users to sort with these attributes):
-
-```
-{
-  "tableName": "table_foo",
-  "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
-  "tableStatus": "ACTIVE",
-  "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
-  "creationDateTime":  1457475410,
-  "numberOfDecreasesToday": 0,
-  "readCapacityUnits": 1,
-  "writeCapacityUnits": 1,
-  "tableSizeBytes": 0,
-  "itemCount": 0,
-  "tableArn": "arn:aws:dynamodb:us-east-1:user_id:table/table_foo,
-  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,
-    WriteCapacityUnits: 1}"
-}
-```
 
 Sample query: show readCapacityUnits and tableName of all tables sorted by readCapacity:
 ``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName&&l=3``
@@ -110,9 +68,145 @@ Sample response:
 ]
 ```
 
+### /ec2 ###
+Search EC2 instances.
 
-### /dynamo/all  ###
-Search all tables in DynamoDB.
+Fields:
+```
+{
+  id: "id_foo",
+  type: "m1.xlarge",
+  lifecycle: null,
+  hypervisor: "xen",
+  az: "eu-west-1a",
+  group: "",
+  tenancy: "default",
+  platform: null,
+  kernel: "aki-62695816",
+  key: "ops.2011-12-21",
+  image: "ami-81c5fdf5",
+  privateIP: null,
+  publicIP: null,
+  publicHostname: "",
+  privateHostname: "",
+  architecture: "x86_64",
+  state: "stopped",
+  ramdisk: null,
+  subnet: null,
+  rootDeviceName: "/dev/sda1",
+  rootDeviceType: "ebs",
+  stateTransitionReason: "User initiated",
+  spotInstanceRequest: null,
+  virtualizationType: "paravirtual",
+  sourceDestCheck: null,
+  stateReason: "Server.ScheduledStop: Stopped due to scheduled retirement",
+  vpc: null,
+  tags: {
+    Name: "roambi"
+  },
+  launchTime: 1341250030000,
+  securityGroups: [
+    {
+      id: "sg-4e20d876",
+      name: "Open Web Server"
+    }
+  ],
+  daysOld: 1352.2294
+}
+```
+
+### /dynamo ###
+Search tables in DynamoDB.
+
+Fields(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
+  ``provisionedThroughput`` which allows users to sort with these attributes):
+
+```
+{
+  "tableName": "table_foo",
+  "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
+  "tableStatus": "ACTIVE",
+  "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
+  "creationDateTime":  1457475410,
+  "numberOfDecreasesToday": 0,
+  "readCapacityUnits": 1,
+  "writeCapacityUnits": 1,
+  "tableSizeBytes": 0,
+  "itemCount": 0,
+  "tableArn": "arn:aws:dynamodb:us-east-1:user_id:table/table_foo,
+  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,
+    WriteCapacityUnits: 1}"
+}
+```
+
+### /sqs ###
+Search queues in SQS.
+
+Fields:
+```
+{
+    url: "https://sqs.us-east-1.amazonaws.com/test_account/db1",
+    approximateNumberOfMessagesDelayed: 0,
+    receiveMessageWaitTimeSeconds: 0,
+    createdTimestamp: 1455227837,
+    delaySeconds: 0,
+    messageRetentionPeriod: 1209600,
+    maximumMessageSize: 262144,
+    visibilityTimeout: 600,
+    approximateNumberOfMessages: 0,
+    lastModifiedTimestamp: 1457640519,
+    queueArn: "arn:aws:sqs:us-east-1:test_account:db1"
+}
+```
+
+### /elasticache/cluster ###
+
+Search provisioned cache clusters.
+
+Fields:
+```
+{
+    cacheClusterId: "cluster_foo",
+    configurationEndpoint: null,
+    cacheNodeType: "cache.m1.small",
+    engine: "memcached",
+    engineVersion: "1.4.14",
+    cacheClusterStatus: "available",
+    numCacheNodes: 1,
+    preferredAvailabilityZone: "us-east-1e",
+    cacheClusterCreateTime: 1378321573582,
+    preferredMaintenanceWindow: "fri:05:00-fri:07:00",
+    pendingModifiedValues: "{CacheNodeIdsToRemove: [],}",
+    notificationConfiguration: "{TopicArn: arn:aws:sns:us-east-1:test_account:db1,TopicStatus: active}",
+    cacheSecurityGroups: "[]",
+    cacheParameterGroup: "{CacheParameterGroupName: default.memcached1.4,ParameterApplyStatus: in-sync,CacheNodeIdsToReboot: []}",
+    cacheSubnetGroupName: null,
+    cacheNodes: "[]",
+    autoMinorVersionUpgrade: true,
+    securityGroups: "[]",
+    replicationGroupId: null,
+    snapshotRetentionLimit: null,
+    snapshotWindow: null
+}
+```
+
+### /elasticache/reserved_cache_node_offering ###
+
+Lists available reserved cache node offerings.
+
+Fields:
+```
+{
+    reservedCacheNodesOfferingId: "offeringid_foo",
+    cacheNodeType: "cache.m2.xlarge",
+    duration: 94608000,
+    fixedPrice: 595,
+    usagePrice: 0.088,
+    productDescription: "memcached",
+    offeringType: "Medium Utilization",
+    recurringCharges: "[]"
+}
+```
 
 ### /iam ###
 
@@ -144,8 +238,6 @@ Here is the required User Policy:
         }
       ]
     }
-
-
 
 
 ### Local configuration ###
