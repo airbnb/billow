@@ -1,9 +1,11 @@
 # billow: inspect the cloud #
 
 **As-is:** This project is not actively maintained or supported.
-While updates may still be made and we welcome feedback, keep in mind we may not respond to pull requests or issues quickly.
+While updates may still be made and we welcome feedback, keep in mind we may not respond to pull
+requests or issues quickly.
 
-**Let us know!** If you fork this, or if you use it, or if it helps in anyway, we'd love to hear from you! opensource@airbnb.com
+**Let us know!** If you fork this, or if you use it, or if it helps in anyway, we'd love to hear
+from you! opensource@airbnb.com
 
 ## Goal ##
 
@@ -31,9 +33,10 @@ Optional parameters:
 
 - `q`/`query`: OGNL expression used to filter (defaults to all instances). Examples:
 
-  - `state=="running" && key=="pierre" && launchTime > 1365000000000`
+  - `state=="running"&&key=="pierre"&&launchTime>1365000000000`
 
-- `s`/`sort`: OGNL expression used as a `Comparable` to sort (default to no ordering). Example: `daysOld`.
+- `s`/`sort`: OGNL expression used as a `Comparable` to sort (default to no ordering).
+Example: `daysOld`.
 
 - `l`/`limit`: maximum number of records to return (defaults to none). Example: `10`.
 
@@ -42,6 +45,74 @@ Optional parameters:
   - `type`
   - `az,type`
   - `id,publicIP,launchTime`
+
+### /ec2/all ###
+Search all ec2 instances.
+
+### /rds/all ###
+Search all RDS resources.
+
+### /dynamo ###
+
+Search tables in DynamoDB.
+
+Optional parameters:
+
+- `q` / `query`: OGNL expression used to filter. Example:
+  - `id>100&&readCapacityUnits>10`
+- `s` / `sort`: OGNL expression used as a ``Comparable`` to sort (default to no ordering). Example:  
+  - `s=itemCount`
+- `l` / `limit`: maximum number of records to return. Example:
+  - `l=10`
+- `f` / `field`: comma-separated list of fields to display(defaults to all). Examples:
+  - `f=tableName,tableStatus`
+  - `f=tableName`
+
+Attributes(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
+  ``provisionedThroughput`` which allows users to sort with these attributes):
+
+```
+{
+  "tableName": "table_foo",
+  "attributeDefinitions": "[{AttributeName: foo,AttributeType: S}]",
+  "tableStatus": "ACTIVE",
+  "keySchema": "[{AttributeName: foo,KeyType: HASH}]",
+  "creationDateTime":  1457475410,
+  "numberOfDecreasesToday": 0,
+  "readCapacityUnits": 1,
+  "writeCapacityUnits": 1,
+  "tableSizeBytes": 0,
+  "itemCount": 0,
+  "tableArn": "arn:aws:dynamodb:us-east-1:user_id:table/table_foo,
+  "provisionedThroughput": "{NumberOfDecreasesToday: 0,ReadCapacityUnits: 1,
+    WriteCapacityUnits: 1}"
+}
+```
+
+Sample query: show readCapacityUnits and tableName of all tables sorted by readCapacity:
+``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName&&l=3``
+
+Sample response:
+```
+[
+  {
+    tableName: "table_foo",
+    readCapacityUnits: 1
+  },
+  {
+    tableName: "table_bar",
+    readCapacityUnits: 2
+  },
+  {
+    tableName: "table_baz",
+    readCapacityUnits: 3
+  }
+]
+```
+
+
+### /dynamo/all  ###
+Search all tables in DynamoDB.
 
 ### /iam ###
 
@@ -73,6 +144,8 @@ Here is the required User Policy:
         }
       ]
     }
+
+
 
 
 ### Local configuration ###

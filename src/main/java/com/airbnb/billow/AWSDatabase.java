@@ -1,5 +1,17 @@
 package com.airbnb.billow;
 
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.TableCollection;
+import com.amazonaws.services.dynamodbv2.model.ListTablesResult;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
@@ -18,16 +30,12 @@ import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
 import com.amazonaws.services.rds.model.ListTagsForResourceResult;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Data
 public class AWSDatabase {
     private final ImmutableMultimap<String, EC2Instance> ec2Instances;
+    private final ImmutableMultimap<String, DynamoTable> dynamoTables;
     private final ImmutableMultimap<String, RDSInstance> rdsInstances;
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
@@ -36,12 +44,14 @@ public class AWSDatabase {
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
+                final Map<String, AmazonDynamoDBClient> dynamoClients,
                 final AmazonIdentityManagementClient iamClient) {
-        this(ec2Clients, rdsClients, iamClient, null);
+        this(ec2Clients, rdsClients, dynamoClients, iamClient, null);
     }
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
+                final Map<String, AmazonDynamoDBClient> dynamoClients,
                 final AmazonIdentityManagementClient iamClient,
                 final String configAWSAccountNumber) {
         timestamp = System.currentTimeMillis();
@@ -49,13 +59,36 @@ public class AWSDatabase {
 
         log.info("Getting EC2 instances");
         final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<String, EC2Instance>();
-
+        final ImmutableMultimap.Builder<String, DynamoTable> dynamoTableBuilder = new ImmutableMultimap.Builder<>();
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
             awsAccountNumber = configAWSAccountNumber;
         }
+
+        /**
+         * DynamoDB Tables
+         */
+
+        for (Map.Entry<String, AmazonDynamoDBClient> clientPair : dynamoClients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AmazonDynamoDBClient client = clientPair.getValue();
+            final DynamoDB dynamoDB = new DynamoDB(client);
+            TableCollection<ListTablesResult> tables = dynamoDB.listTables();
+            Iterator<Table> iterator = tables.iterator();
+
+            log.info("Getting DynamoDB from {}", regionName);
+            int cnt = 0;
+            while (iterator.hasNext()) {
+                Table table = iterator.next();
+                dynamoTableBuilder.putAll(regionName, new DynamoTable(table));
+                cnt++;
+            }
+
+            log.debug("Found {} dynamodbs in {}", cnt, regionName);
+        }
+        this.dynamoTables = dynamoTableBuilder.build();
 
         /*
          * EC2 Instances
