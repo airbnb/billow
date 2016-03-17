@@ -19,8 +19,6 @@ import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.SecurityGroup;
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
 import com.amazonaws.services.elasticache.model.CacheCluster;
-import com.amazonaws.services.elasticache.model.DescribeReservedCacheNodesOfferingsResult;
-import com.amazonaws.services.elasticache.model.ReservedCacheNodesOffering;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
@@ -47,8 +45,6 @@ public class AWSDatabase {
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableMultimap<String, SQSQueue> sqsQueues;
     private final ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters;
-    private final ImmutableMultimap<String, ElasticacheReservedCacheNodesOffering>
-        elasticacheReservedCacheNodesOfferings;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
     private String awsAccountNumber;
@@ -78,8 +74,6 @@ public class AWSDatabase {
         final ImmutableMultimap.Builder<String, SQSQueue> sqsQueueBuilder = new ImmutableMultimap.Builder<>();
         final ImmutableMultimap.Builder<String, ElasticacheCluster> elasticacheClusterBuilder =
             new ImmutableMultimap.Builder<>();
-        final ImmutableMultimap.Builder<String, ElasticacheReservedCacheNodesOffering> offeringBuilder = new
-            ImmutableMultimap.Builder<>();
 
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
@@ -95,29 +89,20 @@ public class AWSDatabase {
             final String regionName = clientPair.getKey();
             final AmazonElastiCacheClient client = clientPair.getValue();
 
-            DescribeReservedCacheNodesOfferingsResult offeringsResult = client.describeReservedCacheNodesOfferings();
-            List<ReservedCacheNodesOffering> offerings = offeringsResult.getReservedCacheNodesOfferings();
             List<CacheCluster> clusters = client.describeCacheClusters().getCacheClusters();
 
 
             log.info("Getting Elasticache from {}", regionName);
-            int cntOfferings = 0;
             int cntClusters = 0;
-            for (ReservedCacheNodesOffering offering : offerings) {
-                offeringBuilder.putAll(regionName, new ElasticacheReservedCacheNodesOffering(offering));
-                cntOfferings++;
-            }
 
             for (CacheCluster cluster : clusters) {
                 elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster));
                 cntClusters++;
             }
 
-            log.debug("Found {} reserved cache node offerings and {} clusters in {}",
-                cntOfferings, cntClusters, regionName);
+            log.debug("Found {} cache clusters in {}", cntClusters, regionName);
         }
         this.elasticacheClusters = elasticacheClusterBuilder.build();
-        this.elasticacheReservedCacheNodesOfferings = offeringBuilder.build();
 
         /**
          * SQS Queues

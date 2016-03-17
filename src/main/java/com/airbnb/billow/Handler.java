@@ -47,8 +47,6 @@ public class Handler extends AbstractHandler {
         .addFilter(SQSQueue.QUEUE_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
     public static final SimpleFilterProvider NOOP_CACHE_CLUSTER_FILTER = new SimpleFilterProvider()
         .addFilter(ElasticacheCluster.CACHE_CLUSTER_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
-    public static final SimpleFilterProvider NOOP_RESERVED_CACHE_NODE_OFFERING_FILTER = new SimpleFilterProvider()
-        .addFilter(ElasticacheReservedCacheNodesOffering.RESERVED_CACHE_NODE_OFFERING_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
     private final ObjectMapper mapper;
     private final MetricRegistry registry;
     private final AWSDatabaseHolder dbHolder;
@@ -138,9 +136,6 @@ public class Handler extends AbstractHandler {
                 case "/elasticache/cluster":
                     handleComplexElasticacheCluster(response, paramMap, current);
                     break;
-                case "/elasticache/rsv_cache_node_offering":
-                    handleComplexElasticacheReservedCacheNodeOffering(response, paramMap, current);
-                    break;
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                     break;
@@ -157,52 +152,6 @@ public class Handler extends AbstractHandler {
         } catch (Throwable e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             log.error("Error handling request", e);
-        }
-    }
-
-    private void handleComplexElasticacheReservedCacheNodeOffering(HttpServletResponse response,
-                                                 Map<String, String[]> params,
-                                                 AWSDatabase db) {
-        final String query = getQuery(params);
-        final String sort = getSort(params);
-        final int limit = getLimit(params);
-        final Set<String> fields = getFields(params);
-
-        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
-        try {
-            try {
-                final Collection<ElasticacheReservedCacheNodesOffering> queriedQueues =
-                    listReservedCacheNodeOfferingFromQueryExpression(query, db);
-                final Collection<ElasticacheReservedCacheNodesOffering> sortedQueues =
-                    sortWithExpression(queriedQueues, sort);
-                final Iterable<ElasticacheReservedCacheNodesOffering> servedQueues =
-                    Iterables.limit(sortedQueues, limit);
-
-                if (!(servedQueues.iterator().hasNext())) {
-                    response.setStatus(HttpServletResponse.SC_NO_CONTENT);
-                } else {
-                    final ServletOutputStream outputStream = response.getOutputStream();
-                    final SimpleFilterProvider filterProvider;
-                    if (fields != null) {
-                        log.debug("filtered output ({})", fields);
-                        filterProvider = new SimpleFilterProvider()
-                            .addFilter(ElasticacheReservedCacheNodesOffering.RESERVED_CACHE_NODE_OFFERING_FILTER, SimpleBeanPropertyFilter
-                                .filterOutAllExcept(fields));
-                    } else {
-                        log.debug("unfiltered output");
-                        filterProvider = NOOP_RESERVED_CACHE_NODE_OFFERING_FILTER;
-                    }
-                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedQueues));
-                }
-            } catch (Exception e) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                final ServletOutputStream outputStream = response.getOutputStream();
-                outputStream.print(e.toString());
-                outputStream.close();
-            }
-        } catch (IOException e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            log.error("I/O error handling ElasticacheCluster request", e);
         }
     }
 
@@ -411,26 +360,6 @@ public class Handler extends AbstractHandler {
         }
 
         return queues;
-    }
-
-    Collection<ElasticacheReservedCacheNodesOffering> listReservedCacheNodeOfferingFromQueryExpression(final String
-                                                                                                    expression, final AWSDatabase db)
-        throws OgnlException {
-        final Collection<ElasticacheReservedCacheNodesOffering> allOfferings =
-            db.getElasticacheReservedCacheNodesOfferings().values();
-        if (expression == null)
-            return allOfferings;
-
-        final Object compiled = Ognl.parseExpression(expression);
-        final List<ElasticacheReservedCacheNodesOffering> offerings = new ArrayList<>();
-
-        for (ElasticacheReservedCacheNodesOffering offering : allOfferings) {
-            final Object value = Ognl.getValue(compiled, offerings);
-            if (value instanceof Boolean && (Boolean) value)
-                offerings.add(offering);
-        }
-
-        return offerings;
     }
 
     Collection<ElasticacheCluster> listCacheClustersFromQueryExpression(final String expression, final AWSDatabase db)

@@ -25,16 +25,6 @@ and start contributing!
 
 *The API is in a very early stage. Everything is subject to change.*
 
-
-### /ec2/all ###
-Search all ec2 instances.
-
-### /ec2/sg ###
-Get ec2 security groups.
-
-### /rds/all ###
-Search all RDS resources.
-
 ### Optional parameters ###
 The `ec2`, `dynamo`, `sqs` and `elasticache` queries support following optional parameters:
 - `q` / `query`: OGNL expression used to filter. Example:
@@ -68,10 +58,18 @@ Sample response:
 ]
 ```
 
-### /ec2 ###
-Search EC2 instances.
+### EC2 Query ###
 
-Fields:
+#### /ec2/sg ####
+List all ec2 security groups.
+
+#### /ec2/all ####
+List all ec2 instances.
+
+#### /ec2 ####
+Search ec2 instances with optional parameters.
+
+Fields of ec2 instances:
 ```
 {
   id: "id_foo",
@@ -115,8 +113,15 @@ Fields:
 }
 ```
 
-### /dynamo ###
-Search tables in DynamoDB.
+### RDS Query ###
+
+#### /rds/all ####
+List all RDS resources.
+
+### DynamoDB Query ###
+
+#### /dynamo ####
+Search tables in DynamoDB with optional parameters.
 
 Fields(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
   ``provisionedThroughput`` which allows users to sort with these attributes):
@@ -139,10 +144,13 @@ Fields(``readCapacityUnits`` and ``writeCapacityUnits`` are pulled out of
 }
 ```
 
-### /sqs ###
-Search queues in SQS.
+### SQS Query ###
 
-Fields:
+#### /sqs ####
+
+Search queues in SQS with optional parameters.
+
+Fields of SQS queues:
 ```
 {
     url: "https://sqs.us-east-1.amazonaws.com/test_account/db1",
@@ -159,11 +167,13 @@ Fields:
 }
 ```
 
-### /elasticache/cluster ###
+### Elasticache Query ###
 
-Search provisioned cache clusters.
+#### /elasticache/cluster ####
 
-Fields:
+Search provisioned cache clusters with optional parameters.
+
+Fields of elasticache clusters:
 ```
 {
     cacheClusterId: "cluster_foo",
@@ -190,25 +200,9 @@ Fields:
 }
 ```
 
-### /elasticache/reserved_cache_node_offering ###
+### IAM Query ###
 
-Lists available reserved cache node offerings.
-
-Fields:
-```
-{
-    reservedCacheNodesOfferingId: "offeringid_foo",
-    cacheNodeType: "cache.m2.xlarge",
-    duration: 94608000,
-    fixedPrice: 595,
-    usagePrice: 0.088,
-    productDescription: "memcached",
-    offeringType: "Medium Utilization",
-    recurringCharges: "[]"
-}
-```
-
-### /iam ###
+#### /iam ####
 
 List IAM user credentials.
 
