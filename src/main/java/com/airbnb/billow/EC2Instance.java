@@ -1,18 +1,19 @@
 package com.airbnb.billow;
 
-import com.amazonaws.services.ec2.model.GroupIdentifier;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.StateReason;
-import com.amazonaws.services.ec2.model.Tag;
-import com.fasterxml.jackson.annotation.JsonFilter;
 import lombok.Getter;
-import org.joda.time.DateTime;
-import org.joda.time.Interval;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.amazonaws.services.ec2.model.GroupIdentifier;
+import com.amazonaws.services.ec2.model.Instance;
+import com.amazonaws.services.ec2.model.StateReason;
+import com.amazonaws.services.ec2.model.Tag;
+import com.fasterxml.jackson.annotation.JsonFilter;
+import org.joda.time.DateTime;
+import org.joda.time.Interval;
 
 @JsonFilter(EC2Instance.INSTANCE_FILTER)
 public class EC2Instance {

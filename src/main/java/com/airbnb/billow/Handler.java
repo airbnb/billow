@@ -1,6 +1,20 @@
 package com.airbnb.billow;
 
-import com.amazonaws.services.dynamodbv2.document.Table;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.rds.model.DBInstance;
 import com.amazonaws.services.rds.model.DBInstanceStatusInfo;
@@ -17,25 +31,22 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.net.HttpHeaders;
-import lombok.extern.slf4j.Slf4j;
 import ognl.Ognl;
 import ognl.OgnlException;
 import org.apache.http.entity.ContentType;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.*;
-
 @Slf4j
 public class Handler extends AbstractHandler {
-    public static final SimpleFilterProvider NOOP_INSTANCE_FILTER = new SimpleFilterProvider().addFilter(EC2Instance.INSTANCE_FILTER,
-            SimpleBeanPropertyFilter.serializeAllExcept());
-    public static final SimpleFilterProvider NOOP_TABLE_FILTER = new SimpleFilterProvider().addFilter(DynamoTable.Table_FILTER,
-        SimpleBeanPropertyFilter.serializeAllExcept());
+    public static final SimpleFilterProvider NOOP_INSTANCE_FILTER = new SimpleFilterProvider()
+        .addFilter(EC2Instance.INSTANCE_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
+    public static final SimpleFilterProvider NOOP_TABLE_FILTER = new SimpleFilterProvider()
+        .addFilter(DynamoTable.TABLE_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
+    public static final SimpleFilterProvider NOOP_QUEUE_FILTER = new SimpleFilterProvider()
+        .addFilter(SQSQueue.QUEUE_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
+    public static final SimpleFilterProvider NOOP_CACHE_CLUSTER_FILTER = new SimpleFilterProvider()
+        .addFilter(ElasticacheCluster.CACHE_CLUSTER_FILTER, SimpleBeanPropertyFilter.serializeAllExcept());
     private final ObjectMapper mapper;
     private final MetricRegistry registry;
     private final AWSDatabaseHolder dbHolder;
@@ -119,6 +130,12 @@ public class Handler extends AbstractHandler {
                 case "/dynamo":
                     handleComplexDynamo(response, paramMap, current);
                     break;
+                case "/sqs":
+                    handleComplexSQS(response, paramMap, current);
+                    break;
+                case "/elasticache/cluster":
+                    handleComplexElasticacheCluster(response, paramMap, current);
+                    break;
                 default:
                     response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                     break;
@@ -138,6 +155,90 @@ public class Handler extends AbstractHandler {
         }
     }
 
+    private void handleComplexElasticacheCluster(HttpServletResponse response,
+                                  Map<String, String[]> params,
+                                  AWSDatabase db) {
+        final String query = getQuery(params);
+        final String sort = getSort(params);
+        final int limit = getLimit(params);
+        final Set<String> fields = getFields(params);
+
+        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+        try {
+            try {
+                final Collection<ElasticacheCluster> queriedQueues = listCacheClustersFromQueryExpression(query, db);
+                final Collection<ElasticacheCluster> sortedQueues = sortWithExpression(queriedQueues, sort);
+                final Iterable<ElasticacheCluster> servedQueues = Iterables.limit(sortedQueues, limit);
+
+                if (!(servedQueues.iterator().hasNext())) {
+                    response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                } else {
+                    final ServletOutputStream outputStream = response.getOutputStream();
+                    final SimpleFilterProvider filterProvider;
+                    if (fields != null) {
+                        log.debug("filtered output ({})", fields);
+                        filterProvider = new SimpleFilterProvider()
+                            .addFilter(ElasticacheCluster.CACHE_CLUSTER_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                    } else {
+                        log.debug("unfiltered output");
+                        filterProvider = NOOP_CACHE_CLUSTER_FILTER;
+                    }
+                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedQueues));
+                }
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                final ServletOutputStream outputStream = response.getOutputStream();
+                outputStream.print(e.toString());
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("I/O error handling ElasticacheCluster request", e);
+        }
+    }
+
+    private void handleComplexSQS(HttpServletResponse response,
+                                     Map<String, String[]> params,
+                                     AWSDatabase db) {
+        final String query = getQuery(params);
+        final String sort = getSort(params);
+        final int limit = getLimit(params);
+        final Set<String> fields = getFields(params);
+
+        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+        try {
+            try {
+                final Collection<SQSQueue> queriedQueues = listQueuesFromQueryExpression(query, db);
+                final Collection<SQSQueue> sortedQueues = sortWithExpression(queriedQueues, sort);
+                final Iterable<SQSQueue> servedQueues = Iterables.limit(sortedQueues, limit);
+
+                if (!(servedQueues.iterator().hasNext())) {
+                    response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                } else {
+                    final ServletOutputStream outputStream = response.getOutputStream();
+                    final SimpleFilterProvider filterProvider;
+                    if (fields != null) {
+                        log.debug("filtered output ({})", fields);
+                        filterProvider = new SimpleFilterProvider()
+                            .addFilter(SQSQueue.QUEUE_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                    } else {
+                        log.debug("unfiltered output");
+                        filterProvider = NOOP_QUEUE_FILTER;
+                    }
+                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedQueues));
+                }
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                final ServletOutputStream outputStream = response.getOutputStream();
+                outputStream.print(e.toString());
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("I/O error handling SQS request", e);
+        }
+    }
+
     private void handleComplexDynamo(HttpServletResponse response,
                                     Map<String, String[]> params,
                                     AWSDatabase db) {
@@ -150,7 +251,7 @@ public class Handler extends AbstractHandler {
         try {
             try {
                 final Collection<DynamoTable> queriedTables = listTablesFromQueryExpression(query, db);
-                final Collection<DynamoTable> sortedTables = sortTablesWithExpression(queriedTables, sort);
+                final Collection<DynamoTable> sortedTables = sortWithExpression(queriedTables, sort);
                 final Iterable<DynamoTable> servedTables = Iterables.limit(sortedTables, limit);
 
                 if (!(servedTables.iterator().hasNext())) {
@@ -161,7 +262,7 @@ public class Handler extends AbstractHandler {
                     if (fields != null) {
                         log.debug("filtered output ({})", fields);
                         filterProvider = new SimpleFilterProvider()
-                            .addFilter(DynamoTable.Table_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                            .addFilter(DynamoTable.TABLE_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
                     } else {
                         log.debug("unfiltered output");
                         filterProvider = NOOP_TABLE_FILTER;
@@ -176,7 +277,7 @@ public class Handler extends AbstractHandler {
             }
         } catch (IOException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            log.error("I/O error handling EC2 request", e);
+            log.error("I/O error handling DynamoDB request", e);
         }
     }
 
@@ -195,7 +296,7 @@ public class Handler extends AbstractHandler {
         try {
             try {
                 final Collection<EC2Instance> queriedInstances = listInstancesFromQueryExpression(query, db);
-                final Collection<EC2Instance> sortedInstances = sortInstancesWithExpression(queriedInstances, sort);
+                final Collection<EC2Instance> sortedInstances = sortWithExpression(queriedInstances, sort);
                 final Iterable<EC2Instance> servedInstances = Iterables.limit(sortedInstances, limit);
 
                 if (!(servedInstances.iterator().hasNext())) {
@@ -243,17 +344,52 @@ public class Handler extends AbstractHandler {
         return tables;
     }
 
-    Collection<DynamoTable> sortTablesWithExpression(final Collection<DynamoTable> tables,
-                                                        final String expression)
+    Collection<SQSQueue> listQueuesFromQueryExpression(final String expression, final AWSDatabase db)
+        throws OgnlException {
+        final Collection<SQSQueue> allQueues = db.getSqsQueues().values();
+        if (expression == null)
+            return allQueues;
+
+        final Object compiled = Ognl.parseExpression(expression);
+        final List<SQSQueue> queues = new ArrayList<>();
+
+        for (SQSQueue queue : allQueues) {
+            final Object value = Ognl.getValue(compiled, queues);
+            if (value instanceof Boolean && (Boolean) value)
+                queues.add(queue);
+        }
+
+        return queues;
+    }
+
+    Collection<ElasticacheCluster> listCacheClustersFromQueryExpression(final String expression, final AWSDatabase db)
+        throws OgnlException {
+        final Collection<ElasticacheCluster> allClusters = db.getElasticacheClusters().values();
+        if (expression == null)
+            return allClusters;
+
+        final Object compiled = Ognl.parseExpression(expression);
+        final List<ElasticacheCluster> clusters = new ArrayList<>();
+
+        for (ElasticacheCluster cluster : allClusters) {
+            final Object value = Ognl.getValue(compiled, clusters);
+            if (value instanceof Boolean && (Boolean) value)
+                clusters.add(cluster);
+        }
+
+        return clusters;
+    }
+
+    <T> Collection<T> sortWithExpression(final Collection<T> set, final String expression)
         throws OgnlException {
         if (expression == null)
-            return tables;
+            return set;
 
         final Object compiled = Ognl.parseExpression(expression);
 
-        final ArrayList<DynamoTable> result = new ArrayList<>(tables);
-        Collections.sort(result, new Comparator<DynamoTable>() {
-            public int compare(DynamoTable o1, DynamoTable o2) {
+        final ArrayList<T> result = new ArrayList<>(set);
+        Collections.sort(result, new Comparator<T>() {
+            public int compare(T o1, T o2) {
                 try {
                     final Object v1 = Ognl.getValue(compiled, o1);
                     final Object v2 = Ognl.getValue(compiled, o2);
@@ -287,34 +423,6 @@ public class Handler extends AbstractHandler {
         }
 
         return instances;
-    }
-
-    Collection<EC2Instance> sortInstancesWithExpression(final Collection<EC2Instance> instances,
-                                                        final String expression)
-            throws OgnlException {
-        if (expression == null)
-            return instances;
-
-        final Object compiled = Ognl.parseExpression(expression);
-
-        final ArrayList<EC2Instance> result = new ArrayList<>(instances);
-        Collections.sort(result, new Comparator<EC2Instance>() {
-            public int compare(EC2Instance o1, EC2Instance o2) {
-                try {
-                    final Object v1 = Ognl.getValue(compiled, o1);
-                    final Object v2 = Ognl.getValue(compiled, o2);
-
-                    if (v1 instanceof Comparable) {
-                        return ((Comparable) v1).compareTo(v2);
-                    }
-                } catch (OgnlException e) {
-                    return 0;
-                }
-                return 0;
-            }
-        });
-
-        return result;
     }
 
     private String getQuery(Map<String, String[]> params) {

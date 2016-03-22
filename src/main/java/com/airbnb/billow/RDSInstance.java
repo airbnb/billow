@@ -1,5 +1,15 @@
 package com.airbnb.billow;
 
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.amazonaws.services.rds.model.DBInstance;
 import com.amazonaws.services.rds.model.DBInstanceStatusInfo;
 import com.amazonaws.services.rds.model.DBParameterGroupStatus;
@@ -11,15 +21,6 @@ import com.amazonaws.services.rds.model.PendingModifiedValues;
 import com.amazonaws.services.rds.model.Tag;
 import com.amazonaws.services.rds.model.VpcSecurityGroupMembership;
 import com.fasterxml.jackson.annotation.JsonFilter;
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 @Slf4j
 @JsonFilter(RDSInstance.INSTANCE_FILTER)
