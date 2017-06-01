@@ -79,6 +79,8 @@ public class EC2Instance {
     private final DateTime launchTime;
     @Getter
     private final List<SecurityGroup> securityGroups;
+    @Getter
+    private final String iamInstanceProfile;
 
     public EC2Instance(Instance instance) {
         this.id = instance.getInstanceId();
@@ -108,6 +110,12 @@ public class EC2Instance {
         this.virtualizationType = instance.getVirtualizationType();
         this.sourceDestCheck = instance.getSourceDestCheck();
         this.launchTime = new DateTime(instance.getLaunchTime());
+
+        if (instance.getIamInstanceProfile() != null) {
+            this.iamInstanceProfile = instance.getIamInstanceProfile().getArn().toString();
+        } else {
+            this.iamInstanceProfile = null;
+        }
 
         final StateReason stateReason = instance.getStateReason();
         if (stateReason != null)

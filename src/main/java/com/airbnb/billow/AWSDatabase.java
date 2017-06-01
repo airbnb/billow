@@ -207,7 +207,7 @@ public class AWSDatabase {
          */
 
         log.info("Getting IAM keys");
-        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<IAMUserWithKeys>();
+        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;

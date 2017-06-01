@@ -109,6 +109,7 @@ Fields of ec2 instances:
       name: "Open Web Server"
     }
   ],
+  iamInstanceProfile: "arn:aws:iam::123456789012:instance-profile/sample-Iamrole",
   daysOld: 1352.2294
 }
 ```
