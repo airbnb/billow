@@ -44,6 +44,8 @@ public class RDSInstance {
     @Getter
     private final String dBInstanceStatus;
     @Getter
+    private final String dBClusterIdentifier;
+    @Getter
     private final String dBName;
     @Getter
     private final List<DBParameterGroupStatus> dBParameterGroups;
@@ -107,6 +109,7 @@ public class RDSInstance {
         this.dBInstanceClass = instance.getDBInstanceClass();
         this.dBInstanceIdentifier = instance.getDBInstanceIdentifier();
         this.dBInstanceStatus = instance.getDBInstanceStatus();
+        this.dBClusterIdentifier = instance.getDBClusterIdentifier();
         this.dBName = instance.getDBName();
         this.dBParameterGroups = instance.getDBParameterGroups();
         this.dBSecurityGroups = instance.getDBSecurityGroups();
