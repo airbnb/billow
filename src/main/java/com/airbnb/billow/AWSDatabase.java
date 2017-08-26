@@ -27,6 +27,7 @@ import com.amazonaws.services.identitymanagement.model.ListUsersResult;
 import com.amazonaws.services.identitymanagement.model.User;
 import com.amazonaws.services.rds.AmazonRDSClient;
 import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DBInstanceNotFoundException;
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
 import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
@@ -257,10 +258,19 @@ public class AWSDatabase {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
                             .withResourceName(rdsARN(regionName, awsAccountNumber, instance));
 
-                    ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
+                    try {
+                        ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
-                    rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
-
+                        rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
+                    } catch(DBInstanceNotFoundException e) {
+                        // It is possible for an instance to disappear between when we got the list of instances and
+                        // when we go to find the instance's tags.
+                        log.warn("Unable to find RDS instance '" +
+                                instance.getDBInstanceIdentifier() +
+                                "', last known status was '" +
+                                instance.getDBInstanceStatus() +
+                                "'.  Exception: " + e.toString());
+                    }
                 }
                 rdsRequest.setMarker(result.getMarker());
             } while (result.getMarker() != null);
