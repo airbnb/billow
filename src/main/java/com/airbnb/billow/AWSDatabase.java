@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +27,11 @@ import com.amazonaws.services.identitymanagement.model.ListUsersRequest;
 import com.amazonaws.services.identitymanagement.model.ListUsersResult;
 import com.amazonaws.services.identitymanagement.model.User;
 import com.amazonaws.services.rds.AmazonRDSClient;
+import com.amazonaws.services.rds.model.DBCluster;
+import com.amazonaws.services.rds.model.DBClusterMember;
 import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DescribeDBClustersRequest;
+import com.amazonaws.services.rds.model.DescribeDBClustersResult;
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
 import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
@@ -34,6 +39,7 @@ import com.amazonaws.services.rds.model.ListTagsForResourceResult;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.ListQueuesResult;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 
 @Slf4j
@@ -236,12 +242,31 @@ public class AWSDatabase {
          * RDS Instances
          */
 
-        log.info("Getting RDS instances");
+        log.info("Getting RDS instances and clusters");
         final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<String, RDSInstance>();
 
         for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonRDSClient client = clientPair.getValue();
+            final Map<String, DBCluster> instanceIdToCluster = new HashMap<>();
+
+            DescribeDBClustersRequest dbClustersRequest = new DescribeDBClustersRequest();
+            DescribeDBClustersResult clustersResult;
+
+            log.info("Getting RDS clusters from {}", regionName);
+
+            do {
+                log.debug("Performing RDS request: {}", dbClustersRequest);
+                clustersResult = client.describeDBClusters(dbClustersRequest);
+                final List<DBCluster> clusters = clustersResult.getDBClusters();
+                log.debug("Found {} DB clusters", clusters.size());
+                for (DBCluster cluster : clusters) {
+                    for (DBClusterMember member : cluster.getDBClusterMembers()) {
+                        instanceIdToCluster.put(member.getDBInstanceIdentifier(), cluster);
+                    }
+                }
+                dbClustersRequest.setMarker(clustersResult.getMarker());
+            } while (clustersResult.getMarker() != null);
 
             DescribeDBInstancesRequest rdsRequest = new DescribeDBInstancesRequest();
             DescribeDBInstancesResult result;
@@ -259,7 +284,8 @@ public class AWSDatabase {
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
-                    rdsBuilder.putAll(regionName, new RDSInstance(instance, tagsResult.getTagList()));
+                    rdsBuilder.putAll(regionName, new RDSInstance(instance,
+                        instanceIdToCluster.get(instance.getDBInstanceIdentifier()), tagsResult.getTagList()));
 
                 }
                 rdsRequest.setMarker(result.getMarker());

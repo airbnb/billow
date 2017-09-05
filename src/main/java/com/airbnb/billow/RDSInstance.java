@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.amazonaws.services.rds.model.DBCluster;
+import com.amazonaws.services.rds.model.DBClusterMember;
 import com.amazonaws.services.rds.model.DBInstance;
 import com.amazonaws.services.rds.model.DBInstanceStatusInfo;
 import com.amazonaws.services.rds.model.DBParameterGroupStatus;
@@ -91,6 +93,8 @@ public class RDSInstance {
     private final List<DBInstanceStatusInfo> statusInfos;
     @Getter
     private final List<VpcSecurityGroupMembership> vpcSecurityGroups;
+    @Getter
+    private final boolean isMaster;
 
     @Getter
     private final Map<String, String> tags;
@@ -100,7 +104,7 @@ public class RDSInstance {
     @Getter
     private final String hostname;
 
-    public RDSInstance(DBInstance instance, List<Tag> tagList) {
+    public RDSInstance(DBInstance instance, DBCluster cluster, List<Tag> tagList) {
         this.allocatedStorage = instance.getAllocatedStorage();
         this.autoMinorVersionUpgrade = instance.getAutoMinorVersionUpgrade();
         this.availabilityZone = instance.getAvailabilityZone();
@@ -140,10 +144,26 @@ public class RDSInstance {
         this.secondaryAvailabilityZone = instance.getSecondaryAvailabilityZone();
         this.statusInfos = instance.getStatusInfos();
         this.vpcSecurityGroups = instance.getVpcSecurityGroups();
+        this.isMaster = checkIfMaster(instance, cluster);
 
         this.tags = new HashMap<>(tagList.size());
         for(Tag tag : tagList) {
             this.tags.put(tag.getKey(), tag.getValue());
+        }
+    }
+
+    private boolean checkIfMaster(DBInstance instance, DBCluster cluster) {
+        if (instance.getDBClusterIdentifier() == null || cluster == null) {
+            // It's NOT a member of a DB cluster
+            return readReplicaSourceDBInstanceIdentifier == null;
+        } else {
+            // It's a member of a DB cluster
+            for (DBClusterMember member : cluster.getDBClusterMembers()) {
+                if (member.getDBInstanceIdentifier().equals(dBInstanceIdentifier) && member.isClusterWriter()) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
