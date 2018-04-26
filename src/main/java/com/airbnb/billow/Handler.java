@@ -109,6 +109,9 @@ public class Handler extends AbstractHandler {
                 case "/ec2":
                     handleComplexEC2(response, paramMap, current);
                     break;
+                case "/rds":
+                    handleComplexRDS(response, paramMap, current);
+                    break;
                 case "/ec2/all":
                     handleSimpleRequest(response, current.getEc2Instances());
                     break;
@@ -281,8 +284,6 @@ public class Handler extends AbstractHandler {
         }
     }
 
-
-
     private void handleComplexEC2(HttpServletResponse response,
                                   Map<String, String[]> params,
                                   AWSDatabase db) {
@@ -323,6 +324,49 @@ public class Handler extends AbstractHandler {
         } catch (IOException e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             log.error("I/O error handling EC2 request", e);
+        }
+    }
+
+    private void handleComplexRDS(HttpServletResponse response,
+                                  Map<String, String[]> params,
+                                  AWSDatabase db) {
+        final String query = getQuery(params);
+        final String sort = getSort(params);
+        final int limit = getLimit(params);
+        final Set<String> fields = getFields(params);
+
+        response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+
+        try {
+            try {
+                final Collection<RDSInstance> queriedInstances = listDatabaseInstancesFromQueryExpression(query, db);
+                final Collection<RDSInstance> sortedInstances = sortWithExpression(queriedInstances, sort);
+                final Iterable<RDSInstance> servedInstances = Iterables.limit(sortedInstances, limit);
+
+                if (!(servedInstances.iterator().hasNext())) {
+                    response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                } else {
+                    final ServletOutputStream outputStream = response.getOutputStream();
+                    final SimpleFilterProvider filterProvider;
+                    if (fields != null) {
+                        log.debug("filtered output ({})", fields);
+                        filterProvider = new SimpleFilterProvider()
+                                .addFilter(RDSInstance.INSTANCE_FILTER, SimpleBeanPropertyFilter.filterOutAllExcept(fields));
+                    } else {
+                        log.debug("unfiltered output");
+                        filterProvider = NOOP_INSTANCE_FILTER;
+                    }
+                    mapper.writer(filterProvider).writeValue(outputStream, Lists.newArrayList(servedInstances));
+                }
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                final ServletOutputStream outputStream = response.getOutputStream();
+                outputStream.print(e.toString());
+                outputStream.close();
+            }
+        } catch (IOException e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            log.error("I/O error handling RDS request", e);
         }
     }
 
@@ -417,6 +461,24 @@ public class Handler extends AbstractHandler {
         final List<EC2Instance> instances = new ArrayList<>();
 
         for (EC2Instance instance : allInstances) {
+            final Object value = Ognl.getValue(compiled, instance);
+            if (value instanceof Boolean && (Boolean) value)
+                instances.add(instance);
+        }
+
+        return instances;
+    }
+
+    Collection<RDSInstance> listDatabaseInstancesFromQueryExpression(final String expression, final AWSDatabase db)
+            throws OgnlException {
+        final Collection<RDSInstance> allInstances = db.getRdsInstances().values();
+        if (expression == null)
+            return allInstances;
+
+        final Object compiled = Ognl.parseExpression(expression);
+        final List<RDSInstance> instances = new ArrayList<>();
+
+        for (RDSInstance instance : allInstances) {
             final Object value = Ognl.getValue(compiled, instance);
             if (value instanceof Boolean && (Boolean) value)
                 instances.add(instance);
