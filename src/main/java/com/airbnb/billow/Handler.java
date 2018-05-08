@@ -380,7 +380,7 @@ public class Handler extends AbstractHandler {
         final List<DynamoTable> tables = new ArrayList<>();
 
         for (DynamoTable table : allTables) {
-            final Object value = Ognl.getValue(compiled, tables);
+            final Object value = Ognl.getValue(compiled, table);
             if (value instanceof Boolean && (Boolean) value)
                 tables.add(table);
         }
@@ -398,7 +398,7 @@ public class Handler extends AbstractHandler {
         final List<SQSQueue> queues = new ArrayList<>();
 
         for (SQSQueue queue : allQueues) {
-            final Object value = Ognl.getValue(compiled, queues);
+            final Object value = Ognl.getValue(compiled, queue);
             if (value instanceof Boolean && (Boolean) value)
                 queues.add(queue);
         }
@@ -416,7 +416,7 @@ public class Handler extends AbstractHandler {
         final List<ElasticacheCluster> clusters = new ArrayList<>();
 
         for (ElasticacheCluster cluster : allClusters) {
-            final Object value = Ognl.getValue(compiled, clusters);
+            final Object value = Ognl.getValue(compiled, cluster);
             if (value instanceof Boolean && (Boolean) value)
                 clusters.add(cluster);
         }
