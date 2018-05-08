@@ -20,6 +20,8 @@ import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.SecurityGroup;
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
 import com.amazonaws.services.elasticache.model.CacheCluster;
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest;
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersResult;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
@@ -94,19 +96,27 @@ public class AWSDatabase {
         for (Map.Entry<String, AmazonElastiCacheClient> clientPair : elasticacheClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonElastiCacheClient client = clientPair.getValue();
+            DescribeCacheClustersRequest describeRequest = new DescribeCacheClustersRequest();
 
-            List<CacheCluster> clusters = client.describeCacheClusters().getCacheClusters();
+            DescribeCacheClustersResult describeResult;
+
+            do {
+                log.info("Getting Elasticache from {} with marker {}", regionName, describeRequest.getMarker());
+
+                describeResult = client.describeCacheClusters(describeRequest);
+                int cntClusters = 0;
+
+                for (CacheCluster cluster : describeResult.getCacheClusters()) {
+                    elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster));
+                    cntClusters++;
+                }
+
+                log.debug("Found {} cache clusters in {}", cntClusters, regionName);
+
+                describeRequest.setMarker(describeResult.getMarker());
+            } while (describeResult.getMarker() != null);
 
 
-            log.info("Getting Elasticache from {}", regionName);
-            int cntClusters = 0;
-
-            for (CacheCluster cluster : clusters) {
-                elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster));
-                cntClusters++;
-            }
-
-            log.debug("Found {} cache clusters in {}", cntClusters, regionName);
         }
         this.elasticacheClusters = elasticacheClusterBuilder.build();
 
