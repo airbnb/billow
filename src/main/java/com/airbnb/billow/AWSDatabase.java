@@ -1,5 +1,10 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsRequest;
+import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsResult;
+import com.amazonaws.services.elasticache.model.NodeGroup;
+import com.amazonaws.services.elasticache.model.NodeGroupMember;
+import com.amazonaws.services.elasticache.model.ReplicationGroup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,7 +46,6 @@ import com.amazonaws.services.rds.model.ListTagsForResourceResult;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.ListQueuesResult;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 
 @Slf4j
@@ -96,25 +100,43 @@ public class AWSDatabase {
         for (Map.Entry<String, AmazonElastiCacheClient> clientPair : elasticacheClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonElastiCacheClient client = clientPair.getValue();
-            DescribeCacheClustersRequest describeRequest = new DescribeCacheClustersRequest();
-
-            DescribeCacheClustersResult describeResult;
+            final Map<String, NodeGroupMember> clusterIdToNodeGroupMember = new HashMap<>();
+            DescribeCacheClustersRequest describeCacheClustersRequest = new DescribeCacheClustersRequest();
+            DescribeReplicationGroupsRequest describeReplicationGroupsRequest = new DescribeReplicationGroupsRequest();
+            DescribeCacheClustersResult describeCacheClustersResult;
+            DescribeReplicationGroupsResult describeReplicationGroupsResult;
 
             do {
-                log.info("Getting Elasticache from {} with marker {}", regionName, describeRequest.getMarker());
+                log.info("Getting Elasticache replication groups from {} with marker {}", regionName, describeReplicationGroupsRequest.getMarker());
 
-                describeResult = client.describeCacheClusters(describeRequest);
+                describeReplicationGroupsResult = client.describeReplicationGroups(describeReplicationGroupsRequest);
+
+                for (ReplicationGroup replicationGroup: describeReplicationGroupsResult.getReplicationGroups()) {
+                    for (NodeGroup nodeGroup: replicationGroup.getNodeGroups()) {
+                        for (NodeGroupMember nodeGroupMember: nodeGroup.getNodeGroupMembers()) {
+                            clusterIdToNodeGroupMember.put(nodeGroupMember.getCacheClusterId(), nodeGroupMember);
+                        }
+                    }
+                }
+
+                describeReplicationGroupsRequest.setMarker(describeReplicationGroupsResult.getMarker());
+            } while (describeReplicationGroupsResult.getMarker() != null);
+
+            do {
+                log.info("Getting Elasticache from {} with marker {}", regionName, describeCacheClustersRequest.getMarker());
+
+                describeCacheClustersResult = client.describeCacheClusters(describeCacheClustersRequest);
                 int cntClusters = 0;
 
-                for (CacheCluster cluster : describeResult.getCacheClusters()) {
-                    elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster));
+                for (CacheCluster cluster : describeCacheClustersResult.getCacheClusters()) {
+                    elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster, clusterIdToNodeGroupMember.get(cluster.getCacheClusterId())));
                     cntClusters++;
                 }
 
                 log.debug("Found {} cache clusters in {}", cntClusters, regionName);
 
-                describeRequest.setMarker(describeResult.getMarker());
-            } while (describeResult.getMarker() != null);
+                describeCacheClustersRequest.setMarker(describeCacheClustersResult.getMarker());
+            } while (describeCacheClustersResult.getMarker() != null);
 
 
         }

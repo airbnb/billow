@@ -1,5 +1,7 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.elasticache.model.Endpoint;
+import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import lombok.Getter;
 
 import java.util.Date;
@@ -56,8 +58,13 @@ public class ElasticacheCluster {
     private final Integer snapshotRetentionLimit;
     @Getter
     private final String snapshotWindow;
+    @Getter
+    private final Endpoint endpoint;
+    @Getter
+    private final String currentRole;
 
-    public ElasticacheCluster(CacheCluster cacheCluster) {
+
+    public ElasticacheCluster(CacheCluster cacheCluster, NodeGroupMember nodeGroupMember) {
         this.cacheClusterId = cacheCluster.getCacheClusterId();
         this.clientDownloadLandingPage = cacheCluster.getClientDownloadLandingPage();
         this.cacheNodeType = cacheCluster.getCacheNodeType();
@@ -83,5 +90,12 @@ public class ElasticacheCluster {
         this.replicationGroupId = cacheCluster.getReplicationGroupId();
         this.snapshotRetentionLimit = cacheCluster.getSnapshotRetentionLimit();
         this.snapshotWindow = cacheCluster.getSnapshotWindow();
+        if (nodeGroupMember != null) {
+            this.endpoint = nodeGroupMember.getReadEndpoint();
+            this.currentRole = nodeGroupMember.getCurrentRole();
+        } else {
+            this.endpoint = cacheCluster.getConfigurationEndpoint();
+            this.currentRole = null;
+        }
     }
 }
