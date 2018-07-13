@@ -1,5 +1,8 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 
 import com.amazonaws.services.dynamodbv2.document.Table;
@@ -34,19 +37,61 @@ public class DynamoTable {
     private final String tableArn;
     @Getter
     private final String provisionedThroughput;
+    @Getter
+    private final List<DynamoGSI> globalSecondaryIndexes;
 
     public DynamoTable(Table table) {
+        table.describe();
         tableName = table.getTableName();
-        attributeDefinitions = table.describe().getAttributeDefinitions().toString();
-        tableStatus = table.describe().getTableStatus();
-        keySchema = table.describe().getKeySchema().toString();
-        creationDateTime = new DateTime(table.describe().getCreationDateTime());
-        numberOfDecreasesToday = table.describe().getProvisionedThroughput().getNumberOfDecreasesToday();
-        readCapacityUnits = table.describe().getProvisionedThroughput().getReadCapacityUnits();
-        writeCapacityUnits = table.describe().getProvisionedThroughput().getWriteCapacityUnits();
-        tableSizeBytes = table.describe().getTableSizeBytes();
-        itemCount = table.describe().getItemCount();
-        tableArn = table.describe().getTableArn();
-        provisionedThroughput = table.describe().getProvisionedThroughput().toString();
+        attributeDefinitions = table.getDescription().getAttributeDefinitions().toString();
+        tableStatus = table.getDescription().getTableStatus();
+        keySchema = table.getDescription().getKeySchema().toString();
+        creationDateTime = new DateTime(table.getDescription().getCreationDateTime());
+        numberOfDecreasesToday = table.getDescription().getProvisionedThroughput().getNumberOfDecreasesToday();
+        readCapacityUnits = table.getDescription().getProvisionedThroughput().getReadCapacityUnits();
+        writeCapacityUnits = table.getDescription().getProvisionedThroughput().getWriteCapacityUnits();
+        tableSizeBytes = table.getDescription().getTableSizeBytes();
+        itemCount = table.getDescription().getItemCount();
+        tableArn = table.getDescription().getTableArn();
+        provisionedThroughput = table.getDescription().getProvisionedThroughput().toString();
+        globalSecondaryIndexes = new ArrayList<>();
+
+        if (table.getDescription().getGlobalSecondaryIndexes() != null) {
+            for (GlobalSecondaryIndexDescription gsiDesc : table
+                .getDescription()
+                .getGlobalSecondaryIndexes()) {
+                globalSecondaryIndexes.add(new DynamoGSI(gsiDesc));
+            }
+        }
+    }
+
+    private static final class DynamoGSI {
+        @Getter
+        private final String gsiName;
+        @Getter
+        private final Long readCapacityUnits;
+        @Getter
+        private final Long writeCapacityUnits;
+        @Getter
+        private final Long itemCount;
+        @Getter
+        private final Long indexSizeBytes;
+        @Getter
+        private final String indexStatus;
+        @Getter
+        private final Boolean backfilling;
+        @Getter
+        private final String indexArn;
+
+        public DynamoGSI(GlobalSecondaryIndexDescription desc) {
+            gsiName = desc.getIndexName();
+            readCapacityUnits = desc.getProvisionedThroughput().getReadCapacityUnits();
+            writeCapacityUnits = desc.getProvisionedThroughput().getWriteCapacityUnits();
+            itemCount = desc.getItemCount();
+            indexSizeBytes = desc.getIndexSizeBytes();
+            indexStatus = desc.getIndexStatus();
+            backfilling = desc.getBackfilling();
+            indexArn = desc.getIndexArn();
+        }
     }
 }
