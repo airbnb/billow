@@ -1,5 +1,6 @@
 package com.airbnb.billow;
 
+import com.amazonaws.services.ec2.model.Snapshot;
 import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsRequest;
 import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsResult;
 import com.amazonaws.services.elasticache.model.NodeGroup;
@@ -36,11 +37,17 @@ import com.amazonaws.services.identitymanagement.model.User;
 import com.amazonaws.services.rds.AmazonRDSClient;
 import com.amazonaws.services.rds.model.DBCluster;
 import com.amazonaws.services.rds.model.DBClusterMember;
+import com.amazonaws.services.rds.model.DBClusterSnapshot;
 import com.amazonaws.services.rds.model.DBInstance;
+import com.amazonaws.services.rds.model.DBSnapshot;
+import com.amazonaws.services.rds.model.DescribeDBClusterSnapshotsRequest;
+import com.amazonaws.services.rds.model.DescribeDBClusterSnapshotsResult;
 import com.amazonaws.services.rds.model.DescribeDBClustersRequest;
 import com.amazonaws.services.rds.model.DescribeDBClustersResult;
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest;
 import com.amazonaws.services.rds.model.DescribeDBInstancesResult;
+import com.amazonaws.services.rds.model.DescribeDBSnapshotsRequest;
+import com.amazonaws.services.rds.model.DescribeDBSnapshotsResult;
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest;
 import com.amazonaws.services.rds.model.ListTagsForResourceResult;
 import com.amazonaws.services.sqs.AmazonSQSClient;
@@ -316,8 +323,27 @@ public class AWSDatabase {
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
+                    List<String> snapshots = new ArrayList<>();
+                    // Get snapshot for masters only.
+                    if (RDSInstance.checkIfMaster(instance, instanceIdToCluster.get(instance.getDBInstanceIdentifier()))) {
+                       if ("aurora".equals(instance.getEngine())) {
+                           DescribeDBClusterSnapshotsRequest snapshotsRequest = new DescribeDBClusterSnapshotsRequest()
+                               .withDBClusterIdentifier(instance.getDBClusterIdentifier());
+                           DescribeDBClusterSnapshotsResult snapshotsResult = client.describeDBClusterSnapshots(snapshotsRequest);
+                           for (DBClusterSnapshot s : snapshotsResult.getDBClusterSnapshots()) {
+                               snapshots.add(s.getDBClusterSnapshotIdentifier());
+                           }
+                       } else {
+                           DescribeDBSnapshotsRequest snapshotsRequest = new DescribeDBSnapshotsRequest()
+                               .withDBInstanceIdentifier(instance.getDBInstanceIdentifier());
+                           DescribeDBSnapshotsResult snapshotsResult = client.describeDBSnapshots(snapshotsRequest);
+                           for (DBSnapshot s : snapshotsResult.getDBSnapshots()) {
+                               snapshots.add(s.getDBSnapshotIdentifier());
+                           }
+                       }
+                    }
                     rdsBuilder.putAll(regionName, new RDSInstance(instance,
-                        instanceIdToCluster.get(instance.getDBInstanceIdentifier()), tagsResult.getTagList()));
+                        instanceIdToCluster.get(instance.getDBInstanceIdentifier()), tagsResult.getTagList(), snapshots));
 
                 }
                 rdsRequest.setMarker(result.getMarker());
