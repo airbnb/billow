@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -104,7 +105,10 @@ public class RDSInstance {
     @Getter
     private final String hostname;
 
-    public RDSInstance(DBInstance instance, DBCluster cluster, List<Tag> tagList) {
+    @Getter
+    private final List<String> snapshots;
+
+    public RDSInstance(DBInstance instance, DBCluster cluster, List<Tag> tagList, List<String> snapshots) {
         this.allocatedStorage = instance.getAllocatedStorage();
         this.autoMinorVersionUpgrade = instance.getAutoMinorVersionUpgrade();
         this.availabilityZone = instance.getAvailabilityZone();
@@ -150,16 +154,18 @@ public class RDSInstance {
         for(Tag tag : tagList) {
             this.tags.put(tag.getKey(), tag.getValue());
         }
+
+        this.snapshots = new ArrayList<>(snapshots);
     }
 
-    private boolean checkIfMaster(DBInstance instance, DBCluster cluster) {
+    public static boolean checkIfMaster(DBInstance instance, DBCluster cluster) {
         if (instance.getDBClusterIdentifier() == null || cluster == null) {
             // It's NOT a member of a DB cluster
-            return readReplicaSourceDBInstanceIdentifier == null;
+            return instance.getReadReplicaSourceDBInstanceIdentifier() == null;
         } else {
             // It's a member of a DB cluster
             for (DBClusterMember member : cluster.getDBClusterMembers()) {
-                if (member.getDBInstanceIdentifier().equals(dBInstanceIdentifier) && member.isClusterWriter()) {
+                if (member.getDBInstanceIdentifier().equals(instance.getDBInstanceIdentifier()) && member.isClusterWriter()) {
                     return true;
                 }
             }
