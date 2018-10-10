@@ -326,7 +326,7 @@ public class AWSDatabase {
                     List<String> snapshots = new ArrayList<>();
                     // Get snapshot for masters only.
                     if (RDSInstance.checkIfMaster(instance, instanceIdToCluster.get(instance.getDBInstanceIdentifier()))) {
-                       if ("aurora".equals(instance.getEngine())) {
+                       if ("aurora".equals(instance.getEngine()) || "aurora-mysql".equals(instance.getEngine())) {
                            DescribeDBClusterSnapshotsRequest snapshotsRequest = new DescribeDBClusterSnapshotsRequest()
                                .withDBClusterIdentifier(instance.getDBClusterIdentifier());
                            DescribeDBClusterSnapshotsResult snapshotsResult = client.describeDBClusterSnapshots(snapshotsRequest);
