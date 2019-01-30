@@ -41,6 +41,7 @@ public class AWSDatabaseHolder {
 
         final ClientConfiguration clientConfig = new ClientConfiguration();
         clientConfig.setRetryPolicy(new RetryPolicy(null, null, config.getInt("maxErrorRetry"), true));
+        clientConfig.setSocketTimeout(config.getInt("socketTimeout") * 1000);
 
         final AmazonEC2Client bootstrapEC2Client = new AmazonEC2Client(awsCredentialsProviderChain);
         ec2Clients = Maps.newHashMap();
