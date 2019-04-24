@@ -5,8 +5,12 @@ import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import lombok.Getter;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import com.amazonaws.services.elasticache.model.CacheCluster;
+import com.amazonaws.services.elasticache.model.Tag;
 import com.fasterxml.jackson.annotation.JsonFilter;
 
 /**
@@ -62,9 +66,11 @@ public class ElasticacheCluster {
     private final Endpoint endpoint;
     @Getter
     private final String currentRole;
+    @Getter
+    private final Map<String, String> tags;
 
 
-    public ElasticacheCluster(CacheCluster cacheCluster, NodeGroupMember nodeGroupMember) {
+    public ElasticacheCluster(CacheCluster cacheCluster, NodeGroupMember nodeGroupMember, List<Tag> tagList) {
         this.cacheClusterId = cacheCluster.getCacheClusterId();
         this.clientDownloadLandingPage = cacheCluster.getClientDownloadLandingPage();
         this.cacheNodeType = cacheCluster.getCacheNodeType();
@@ -96,6 +102,10 @@ public class ElasticacheCluster {
         } else {
             this.endpoint = cacheCluster.getConfigurationEndpoint();
             this.currentRole = null;
+        }
+        this.tags = new HashMap<>(tagList.size());
+        for(Tag tag : tagList) {
+            this.tags.put(tag.getKey(), tag.getValue());
         }
     }
 }

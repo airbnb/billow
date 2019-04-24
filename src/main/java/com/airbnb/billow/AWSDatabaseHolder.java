@@ -14,6 +14,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.Region;
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
+import com.amazonaws.services.elasticsearch.AWSElasticsearchClient;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.rds.AmazonRDSClient;
 import com.amazonaws.services.sqs.AmazonSQSClient;
@@ -28,6 +29,7 @@ public class AWSDatabaseHolder {
     private final Map<String, AmazonDynamoDBClient> dynamoDBClients;
     private final Map<String, AmazonSQSClient> sqsClients;
     private final Map<String, AmazonElastiCacheClient> elasticacheClients;
+    private final Map<String, AWSElasticsearchClient> elasticsearchClients;
     private final AmazonIdentityManagementClient iamClient;
     @Getter
     private AWSDatabase current;
@@ -49,6 +51,7 @@ public class AWSDatabaseHolder {
         sqsClients = Maps.newHashMap();
         dynamoDBClients = Maps.newHashMap();
         elasticacheClients = Maps.newHashMap();
+        elasticsearchClients = Maps.newHashMap();
 
         final List<Region> ec2Regions = bootstrapEC2Client.describeRegions().getRegions();
         for (Region region : ec2Regions) {
@@ -77,6 +80,11 @@ public class AWSDatabaseHolder {
                 (awsCredentialsProviderChain, clientConfig);
             elastiCacheClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "elasticache."));
             elasticacheClients.put(regionName, elastiCacheClient);
+
+            final AWSElasticsearchClient elasticsearchClient = new AWSElasticsearchClient
+                (awsCredentialsProviderChain, clientConfig);
+            elasticsearchClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "es."));
+            elasticsearchClients.put(regionName, elasticsearchClient);
         }
 
         this.iamClient = new AmazonIdentityManagementClient(awsCredentialsProviderChain, clientConfig);
@@ -91,7 +99,14 @@ public class AWSDatabaseHolder {
     }
 
     public void rebuild() {
-        current = new AWSDatabase(ec2Clients, rdsClients, dynamoDBClients, sqsClients, elasticacheClients, iamClient,
+        current = new AWSDatabase(
+            ec2Clients,
+            rdsClients,
+            dynamoDBClients,
+            sqsClients,
+            elasticacheClients,
+            elasticsearchClients,
+            iamClient,
             awsAccountNumber);
     }
 
