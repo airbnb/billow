@@ -1,6 +1,5 @@
 package com.airbnb.billow;
 
-import com.amazonaws.services.ec2.model.Snapshot;
 import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsRequest;
 import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsResult;
 import com.amazonaws.services.elasticache.model.NodeGroup;
@@ -28,6 +27,12 @@ import com.amazonaws.services.elasticache.AmazonElastiCacheClient;
 import com.amazonaws.services.elasticache.model.CacheCluster;
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest;
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersResult;
+import com.amazonaws.services.elasticsearch.AWSElasticsearchClient;
+import com.amazonaws.services.elasticsearch.model.DomainInfo;
+import com.amazonaws.services.elasticsearch.model.ListDomainNamesRequest;
+import com.amazonaws.services.elasticsearch.model.ListDomainNamesResult;
+import com.amazonaws.services.elasticsearch.model.ListTagsRequest;
+import com.amazonaws.services.elasticsearch.model.ListTagsResult;
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
@@ -64,6 +69,7 @@ public class AWSDatabase {
     private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
     private final ImmutableMultimap<String, SQSQueue> sqsQueues;
     private final ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters;
+    private final ImmutableMultimap<String, ElasticsearchCluster> elasticsearchClusters;
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
     private String awsAccountNumber;
@@ -73,8 +79,9 @@ public class AWSDatabase {
                 final Map<String, AmazonDynamoDBClient> dynamoClients,
                 final Map<String, AmazonSQSClient> sqsClients,
                 final Map<String, AmazonElastiCacheClient> elasticacheClients,
+                final Map<String, AWSElasticsearchClient> elasticsearchClients,
                 final AmazonIdentityManagementClient iamClient) {
-        this(ec2Clients, rdsClients, dynamoClients, sqsClients, elasticacheClients, iamClient, null);
+        this(ec2Clients, rdsClients, dynamoClients, sqsClients, elasticacheClients, elasticsearchClients, iamClient, null);
     }
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
@@ -82,6 +89,7 @@ public class AWSDatabase {
                 final Map<String, AmazonDynamoDBClient> dynamoClients,
                 final Map<String, AmazonSQSClient> sqsClients,
                 final Map<String, AmazonElastiCacheClient> elasticacheClients,
+                final Map<String, AWSElasticsearchClient> elasticsearchClients,
                 final AmazonIdentityManagementClient iamClient,
                 final String configAWSAccountNumber) {
         timestamp = System.currentTimeMillis();
@@ -93,6 +101,8 @@ public class AWSDatabase {
         final ImmutableMultimap.Builder<String, SQSQueue> sqsQueueBuilder = new ImmutableMultimap.Builder<>();
         final ImmutableMultimap.Builder<String, ElasticacheCluster> elasticacheClusterBuilder =
             new ImmutableMultimap.Builder<>();
+        final ImmutableMultimap.Builder<String, ElasticsearchCluster> elasticsearchClusterBuilder =
+            new ImmutableMultimap.Builder<>();
 
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
@@ -101,9 +111,41 @@ public class AWSDatabase {
             awsAccountNumber = configAWSAccountNumber;
         }
 
-        /**
+        /*
+         * IAM keys
+         * Put this in the beginning to populate the awsAccountNumber.
+         */
+
+        log.info("Getting IAM keys");
+        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
+
+        final ListUsersRequest listUsersRequest = new ListUsersRequest();
+        ListUsersResult listUsersResult;
+        do {
+            log.debug("Performing IAM request: {}", listUsersRequest);
+            listUsersResult = iamClient.listUsers(listUsersRequest);
+            final List<User> users = listUsersResult.getUsers();
+            log.debug("Found {} users", users.size());
+            for (User user : users) {
+                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
+                listAccessKeysRequest.setUserName(user.getUserName());
+                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
+
+                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
+                usersBuilder.add(userWithKeys);
+
+                if (awsAccountNumber.isEmpty()) {
+                    awsAccountNumber = user.getArn().split(":")[4];
+                }
+            }
+            listUsersRequest.setMarker(listUsersResult.getMarker());
+        } while (listUsersResult.isTruncated());
+        this.iamUsers = usersBuilder.build();
+
+        /*
          * ElasticCache
          */
+
         for (Map.Entry<String, AmazonElastiCacheClient> clientPair : elasticacheClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonElastiCacheClient client = clientPair.getValue();
@@ -136,7 +178,13 @@ public class AWSDatabase {
                 int cntClusters = 0;
 
                 for (CacheCluster cluster : describeCacheClustersResult.getCacheClusters()) {
-                    elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster, clusterIdToNodeGroupMember.get(cluster.getCacheClusterId())));
+                    com.amazonaws.services.elasticache.model.ListTagsForResourceRequest tagsRequest =
+                        new com.amazonaws.services.elasticache.model.ListTagsForResourceRequest()
+                            .withResourceName(elasticacheARN(regionName, awsAccountNumber, cluster));
+
+                    com.amazonaws.services.elasticache.model.ListTagsForResourceResult tagsResult =
+                        client.listTagsForResource(tagsRequest);
+                    elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster, clusterIdToNodeGroupMember.get(cluster.getCacheClusterId()), tagsResult.getTagList()));
                     cntClusters++;
                 }
 
@@ -149,7 +197,29 @@ public class AWSDatabase {
         }
         this.elasticacheClusters = elasticacheClusterBuilder.build();
 
-        /**
+        /*
+         * Elasticsearch
+         */
+
+        for (Map.Entry<String, AWSElasticsearchClient> clientPair : elasticsearchClients.entrySet()) {
+            final String regionName = clientPair.getKey();
+            final AWSElasticsearchClient client = clientPair.getValue();
+            ListDomainNamesRequest domainNamesRequest = new ListDomainNamesRequest();
+            ListDomainNamesResult domainNamesResult = client.listDomainNames(domainNamesRequest);
+
+            List<DomainInfo> domainInfoList = domainNamesResult.getDomainNames();
+            for (DomainInfo domainInfo : domainInfoList) {
+                ListTagsRequest listTagsRequest = new ListTagsRequest();
+                listTagsRequest.setARN(elasticsearchARN(regionName, awsAccountNumber, domainInfo.getDomainName()));
+                ListTagsResult tagList = client.listTags(listTagsRequest);
+                elasticsearchClusterBuilder.putAll(regionName, new ElasticsearchCluster(domainInfo, tagList.getTagList()));
+            }
+            log.debug("Found {} Elasticsearch domains in {}", domainInfoList.size(), regionName);
+
+        }
+        this.elasticsearchClusters = elasticsearchClusterBuilder.build();
+
+        /*
          * SQS Queues
          */
 
@@ -190,7 +260,7 @@ public class AWSDatabase {
         }
         this.sqsQueues = sqsQueueBuilder.build();
 
-        /**
+        /*
          * DynamoDB Tables
          */
 
@@ -247,35 +317,6 @@ public class AWSDatabase {
         }
         this.ec2SGs = ec2SGbuilder.build();
 
-        /*
-         * IAM keys
-         */
-
-        log.info("Getting IAM keys");
-        final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
-
-        final ListUsersRequest listUsersRequest = new ListUsersRequest();
-        ListUsersResult listUsersResult;
-        do {
-            log.debug("Performing IAM request: {}", listUsersRequest);
-            listUsersResult = iamClient.listUsers(listUsersRequest);
-            final List<User> users = listUsersResult.getUsers();
-            log.debug("Found {} users", users.size());
-            for (User user : users) {
-                final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
-                listAccessKeysRequest.setUserName(user.getUserName());
-                final List<AccessKeyMetadata> accessKeyMetadata = iamClient.listAccessKeys(listAccessKeysRequest).getAccessKeyMetadata();
-
-                final IAMUserWithKeys userWithKeys = new IAMUserWithKeys(user, ImmutableList.<AccessKeyMetadata>copyOf(accessKeyMetadata));
-                usersBuilder.add(userWithKeys);
-
-                if (awsAccountNumber.isEmpty()) {
-                    awsAccountNumber = user.getArn().split(":")[4];
-                }
-            }
-            listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());
-        this.iamUsers = usersBuilder.build();
 
         /*
          * RDS Instances
@@ -364,6 +405,24 @@ public class AWSDatabase {
                 regionName,
                 accountNumber,
                 instance.getDBInstanceIdentifier()
+        );
+    }
+
+    private String elasticacheARN(String regionName, String accountNumber, CacheCluster cacheCluster) {
+        return String.format(
+                "arn:aws:elasticache:%s:%s:cluster:%s",
+                regionName,
+                accountNumber,
+                cacheCluster.getCacheClusterId()
+        );
+    }
+
+    private String elasticsearchARN(String regionName, String accountNumber, String domainName) {
+        return String.format(
+                "arn:aws:es:%s:%s:domain/%s",
+                regionName,
+                accountNumber,
+                domainName
         );
     }
 }
