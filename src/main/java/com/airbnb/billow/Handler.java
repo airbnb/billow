@@ -121,6 +121,9 @@ public class Handler extends AbstractHandler {
                 case "/ec2/sg":
                     handleSimpleRequest(response, current.getEc2SGs());
                     break;
+                case "/elasticsearch":
+                    handleSimpleRequest(response, current.getElasticsearchClusters());
+                    break;
                 case "/iam": // backwards compatibility with documented feature
                     final ArrayList<AccessKeyMetadata> justKeys = Lists.<AccessKeyMetadata>newArrayList();
                     for (IAMUserWithKeys userWithKeys : current.getIamUsers())
