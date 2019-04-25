@@ -201,6 +201,13 @@ Fields of elasticache clusters:
 }
 ```
 
+### Elasticsearch Query ###
+
+#### /elasticsearch ####
+Fields of elasticsearch domains:
+```
+```
+
 ### IAM Query ###
 
 #### /iam ####
