@@ -8,12 +8,8 @@ import java.util.Map;
 
 import com.amazonaws.services.elasticsearch.model.DomainInfo;
 import com.amazonaws.services.elasticsearch.model.Tag;
-import com.fasterxml.jackson.annotation.JsonFilter;
 
-@JsonFilter(ElasticsearchCluster.DOMAIN_FILTER)
 public class ElasticsearchCluster {
-  public static final String DOMAIN_FILTER = "DomainFilter";
-
   @Getter
   private final String domainName;
   @Getter
