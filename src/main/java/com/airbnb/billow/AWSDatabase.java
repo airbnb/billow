@@ -33,7 +33,7 @@ import com.amazonaws.services.elasticsearch.model.ListDomainNamesRequest;
 import com.amazonaws.services.elasticsearch.model.ListDomainNamesResult;
 import com.amazonaws.services.elasticsearch.model.ListTagsRequest;
 import com.amazonaws.services.elasticsearch.model.ListTagsResult;
-import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient;
+import com.amazonaws.services.identitymanagement.AmazonIdentityManagement;
 import com.amazonaws.services.identitymanagement.model.AccessKeyMetadata;
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest;
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest;
@@ -73,6 +73,7 @@ public class AWSDatabase {
     private final ImmutableList<IAMUserWithKeys> iamUsers;
     private final long timestamp;
     private String awsAccountNumber;
+    private String awsARNPartition;
 
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
@@ -80,18 +81,9 @@ public class AWSDatabase {
                 final Map<String, AmazonSQSClient> sqsClients,
                 final Map<String, AmazonElastiCacheClient> elasticacheClients,
                 final Map<String, AWSElasticsearchClient> elasticsearchClients,
-                final AmazonIdentityManagementClient iamClient) {
-        this(ec2Clients, rdsClients, dynamoClients, sqsClients, elasticacheClients, elasticsearchClients, iamClient, null);
-    }
-
-    AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
-                final Map<String, AmazonRDSClient> rdsClients,
-                final Map<String, AmazonDynamoDBClient> dynamoClients,
-                final Map<String, AmazonSQSClient> sqsClients,
-                final Map<String, AmazonElastiCacheClient> elasticacheClients,
-                final Map<String, AWSElasticsearchClient> elasticsearchClients,
-                final AmazonIdentityManagementClient iamClient,
-                final String configAWSAccountNumber) {
+                final AmazonIdentityManagement iamClient,
+                final String configAWSAccountNumber,
+                final String configAWSARNPartition) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
 
@@ -109,6 +101,13 @@ public class AWSDatabase {
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
             awsAccountNumber = configAWSAccountNumber;
+        }
+
+        if (configAWSARNPartition == null) {
+            awsARNPartition = "aws";
+        } else {
+            log.info("using arn partition '{}' from config", configAWSARNPartition);
+            awsARNPartition = configAWSARNPartition;
         }
 
         /*
@@ -180,7 +179,7 @@ public class AWSDatabase {
                 for (CacheCluster cluster : describeCacheClustersResult.getCacheClusters()) {
                     com.amazonaws.services.elasticache.model.ListTagsForResourceRequest tagsRequest =
                         new com.amazonaws.services.elasticache.model.ListTagsForResourceRequest()
-                            .withResourceName(elasticacheARN(regionName, awsAccountNumber, cluster));
+                            .withResourceName(elasticacheARN(awsARNPartition, regionName, awsAccountNumber, cluster));
 
                     com.amazonaws.services.elasticache.model.ListTagsForResourceResult tagsResult =
                         client.listTagsForResource(tagsRequest);
@@ -210,7 +209,7 @@ public class AWSDatabase {
             List<DomainInfo> domainInfoList = domainNamesResult.getDomainNames();
             for (DomainInfo domainInfo : domainInfoList) {
                 ListTagsRequest listTagsRequest = new ListTagsRequest();
-                listTagsRequest.setARN(elasticsearchARN(regionName, awsAccountNumber, domainInfo.getDomainName()));
+                listTagsRequest.setARN(elasticsearchARN(awsARNPartition, regionName, awsAccountNumber, domainInfo.getDomainName()));
                 ListTagsResult tagList = client.listTags(listTagsRequest);
                 elasticsearchClusterBuilder.putAll(regionName, new ElasticsearchCluster(domainInfo, tagList.getTagList()));
             }
@@ -360,7 +359,7 @@ public class AWSDatabase {
                 log.debug("Found {} RDS instances", instances.size());
                 for (DBInstance instance : instances) {
                     ListTagsForResourceRequest tagsRequest = new ListTagsForResourceRequest()
-                            .withResourceName(rdsARN(regionName, awsAccountNumber, instance));
+                            .withResourceName(rdsARN(awsARNPartition, regionName, awsAccountNumber, instance));
 
                     ListTagsForResourceResult tagsResult = client.listTagsForResource(tagsRequest);
 
@@ -399,27 +398,30 @@ public class AWSDatabase {
         return System.currentTimeMillis() - getTimestamp();
     }
 
-    private String rdsARN(String regionName, String accountNumber, DBInstance instance) {
+    private String rdsARN(String partition, String regionName, String accountNumber, DBInstance instance) {
         return String.format(
-                "arn:aws:rds:%s:%s:db:%s",
+                "arn:%s:rds:%s:%s:db:%s",
+                partition,
                 regionName,
                 accountNumber,
                 instance.getDBInstanceIdentifier()
         );
     }
 
-    private String elasticacheARN(String regionName, String accountNumber, CacheCluster cacheCluster) {
+    private String elasticacheARN(String partition, String regionName, String accountNumber, CacheCluster cacheCluster) {
         return String.format(
-                "arn:aws:elasticache:%s:%s:cluster:%s",
+                "arn:%s:elasticache:%s:%s:cluster:%s",
+                partition,
                 regionName,
                 accountNumber,
                 cacheCluster.getCacheClusterId()
         );
     }
 
-    private String elasticsearchARN(String regionName, String accountNumber, String domainName) {
+    private String elasticsearchARN(String partition, String regionName, String accountNumber, String domainName) {
         return String.format(
-                "arn:aws:es:%s:%s:domain/%s",
+                "arn:%s:es:%s:%s:domain/%s",
+                partition,
                 regionName,
                 accountNumber,
                 domainName
