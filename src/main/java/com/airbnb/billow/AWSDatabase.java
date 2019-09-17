@@ -5,6 +5,8 @@ import com.amazonaws.services.elasticache.model.DescribeReplicationGroupsResult;
 import com.amazonaws.services.elasticache.model.NodeGroup;
 import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import com.amazonaws.services.elasticache.model.ReplicationGroup;
+import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainRequest;
+import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainResult;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -211,7 +213,12 @@ public class AWSDatabase {
                 ListTagsRequest listTagsRequest = new ListTagsRequest();
                 listTagsRequest.setARN(elasticsearchARN(awsARNPartition, regionName, awsAccountNumber, domainInfo.getDomainName()));
                 ListTagsResult tagList = client.listTags(listTagsRequest);
-                elasticsearchClusterBuilder.putAll(regionName, new ElasticsearchCluster(domainInfo, tagList.getTagList()));
+
+                DescribeElasticsearchDomainRequest describeDomainRequest = new DescribeElasticsearchDomainRequest();
+                describeDomainRequest.setDomainName(domainInfo.getDomainName());
+                DescribeElasticsearchDomainResult describeDomainResult = client.describeElasticsearchDomain(describeDomainRequest);
+
+                elasticsearchClusterBuilder.putAll(regionName, new ElasticsearchCluster(describeDomainResult.getDomainStatus(), tagList.getTagList()));
             }
             log.debug("Found {} Elasticsearch domains in {}", domainInfoList.size(), regionName);
 

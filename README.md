@@ -248,6 +248,11 @@ We use Typesafe's config.
 Look at the `reference.conf` resource for the available parameters.
 To get quickly started, pass the following parameters to the JVM: `-Dbillow.aws.accessKeyId=HELLO -Dbillow.aws.secretKeyId=WoRld`.
 
+Note: For local development, ensure that you remove the `profile ` prefix from
+profile names in `~/.aws/config` and `~/.aws/credentials` if you are using
+those. This is due to a mis-match in what the AWS Python SDK expects and what this
+version of the Java SDK expects. [More details here.](https://github.com/aws/aws-sdk-java/issues/1707)
+
 ## Monitoring guide ##
 
 We expose an admin port offering metrics and health checks.
