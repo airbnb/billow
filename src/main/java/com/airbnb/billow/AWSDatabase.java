@@ -100,7 +100,7 @@ public class AWSDatabase {
             new ImmutableMultimap.Builder<>();
 
         if (configAWSAccountNumber == null) {
-            awsAccountNumber = "172631448019";
+            awsAccountNumber = "";
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
             awsAccountNumber = configAWSAccountNumber;
@@ -123,7 +123,7 @@ public class AWSDatabase {
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
-        /*do {
+        do {
             log.debug("Performing IAM request: {}", listUsersRequest);
             listUsersResult = iamClient.listUsers(listUsersRequest);
             final List<User> users = new LinkedList<>(); //listUsersResult.getUsers();
@@ -141,8 +141,8 @@ public class AWSDatabase {
                 }
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());*/
-        this.iamUsers = ImmutableList.<IAMUserWithKeys>builder().build();//usersBuilder.build();
+        } while (listUsersResult.isTruncated());
+        this.iamUsers = usersBuilder.build();
 
         /*
          * ElasticCache
@@ -334,7 +334,6 @@ public class AWSDatabase {
 
         for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
             final String regionName = clientPair.getKey();
-            System.out.println("REGION: " + regionName);
             final AmazonRDSClient client = clientPair.getValue();
             final Map<String, DBCluster> instanceIdToCluster = new HashMap<>();
 

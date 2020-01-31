@@ -1,6 +1,5 @@
 package com.airbnb.billow;
 
-import java.util.ArrayList;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -65,7 +64,7 @@ public class AWSDatabaseHolder {
             final String endpoint = region.getEndpoint();
             log.debug("Adding ec2 region {}", region);
 
-            if (false && config.getBoolean("ec2Enabled")) {
+            if (config.getBoolean("ec2Enabled")) {
                 final AmazonEC2Client ec2Client = new AmazonEC2Client(awsCredentialsProviderChain, clientConfig);
                 ec2Client.setEndpoint(endpoint);
                 ec2Clients.put(regionName, ec2Client);
@@ -77,27 +76,27 @@ public class AWSDatabaseHolder {
                 rdsClients.put(regionName, rdsClient);
             }
 
-            if (false && config.getBoolean("dynamodbEnabled")) {
+            if (config.getBoolean("dynamodbEnabled")) {
                 final AmazonDynamoDBClient dynamoDBClient =
                     new AmazonDynamoDBClient(awsCredentialsProviderChain, clientConfig);
                 dynamoDBClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "dynamodb."));
                 dynamoDBClients.put(regionName, dynamoDBClient);
             }
 
-            if (false && config.getBoolean("sqsEnabled")) {
+            if (config.getBoolean("sqsEnabled")) {
                 final AmazonSQSClient sqsClient = new AmazonSQSClient(awsCredentialsProviderChain, clientConfig);
                 sqsClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "sqs."));
                 sqsClients.put(regionName, sqsClient);
             }
 
-            if (false && config.getBoolean("elasticacheEnabled")) {
+            if (config.getBoolean("elasticacheEnabled")) {
                 final AmazonElastiCacheClient elastiCacheClient = new AmazonElastiCacheClient
                     (awsCredentialsProviderChain, clientConfig);
                 elastiCacheClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "elasticache."));
                 elasticacheClients.put(regionName, elastiCacheClient);
             }
 
-            if (false && config.getBoolean("elasticsearchEnabled")) {
+            if (config.getBoolean("elasticsearchEnabled")) {
                 final AWSElasticsearchClient elasticsearchClient = new AWSElasticsearchClient
                     (awsCredentialsProviderChain, clientConfig);
                 elasticsearchClient.setEndpoint(endpoint.replaceFirst("ec2\\.", "es."));
