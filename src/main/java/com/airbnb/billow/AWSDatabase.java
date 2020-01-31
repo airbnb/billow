@@ -7,7 +7,6 @@ import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import com.amazonaws.services.elasticache.model.ReplicationGroup;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainRequest;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainResult;
-import java.util.LinkedList;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -126,7 +125,7 @@ public class AWSDatabase {
         do {
             log.debug("Performing IAM request: {}", listUsersRequest);
             listUsersResult = iamClient.listUsers(listUsersRequest);
-            final List<User> users = new LinkedList<>(); //listUsersResult.getUsers();
+            final List<User> users = listUsersResult.getUsers();
             log.debug("Found {} users", users.size());
             for (User user : users) {
                 final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
