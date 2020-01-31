@@ -7,6 +7,7 @@ import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import com.amazonaws.services.elasticache.model.ReplicationGroup;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainRequest;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainResult;
+import java.util.LinkedList;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -99,7 +100,7 @@ public class AWSDatabase {
             new ImmutableMultimap.Builder<>();
 
         if (configAWSAccountNumber == null) {
-            awsAccountNumber = "";
+            awsAccountNumber = "172631448019";
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
             awsAccountNumber = configAWSAccountNumber;
@@ -122,10 +123,10 @@ public class AWSDatabase {
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
-        do {
+        /*do {
             log.debug("Performing IAM request: {}", listUsersRequest);
             listUsersResult = iamClient.listUsers(listUsersRequest);
-            final List<User> users = listUsersResult.getUsers();
+            final List<User> users = new LinkedList<>(); //listUsersResult.getUsers();
             log.debug("Found {} users", users.size());
             for (User user : users) {
                 final ListAccessKeysRequest listAccessKeysRequest = new ListAccessKeysRequest();
@@ -140,8 +141,8 @@ public class AWSDatabase {
                 }
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());
-        this.iamUsers = usersBuilder.build();
+        } while (listUsersResult.isTruncated());*/
+        this.iamUsers = ImmutableList.<IAMUserWithKeys>builder().build();//usersBuilder.build();
 
         /*
          * ElasticCache
@@ -333,6 +334,7 @@ public class AWSDatabase {
 
         for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
             final String regionName = clientPair.getKey();
+            System.out.println("REGION: " + regionName);
             final AmazonRDSClient client = clientPair.getValue();
             final Map<String, DBCluster> instanceIdToCluster = new HashMap<>();
 
