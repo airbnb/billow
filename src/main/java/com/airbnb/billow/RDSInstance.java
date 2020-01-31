@@ -108,6 +108,9 @@ public class RDSInstance {
     @Getter
     private final List<String> snapshots;
 
+    @Getter
+    private final String caCertificateIdentifier;
+
     public RDSInstance(DBInstance instance, DBCluster cluster, List<Tag> tagList, List<String> snapshots) {
         this.allocatedStorage = instance.getAllocatedStorage();
         this.autoMinorVersionUpgrade = instance.getAutoMinorVersionUpgrade();
@@ -156,6 +159,7 @@ public class RDSInstance {
         }
 
         this.snapshots = new ArrayList<>(snapshots);
+        this.caCertificateIdentifier = instance.getCACertificateIdentifier();
     }
 
     public static boolean checkIfMaster(DBInstance instance, DBCluster cluster) {
