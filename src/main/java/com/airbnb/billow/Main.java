@@ -1,6 +1,5 @@
 package com.airbnb.billow;
 
-import ch.qos.logback.classic.gaffer.GafferUtil;
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
