@@ -141,7 +141,6 @@ public class AWSDatabase {
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
         } while (listUsersResult.isTruncated());
-
         this.iamUsers = usersBuilder.build();
 
         /*
