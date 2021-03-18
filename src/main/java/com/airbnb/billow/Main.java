@@ -1,5 +1,8 @@
 package com.airbnb.billow;
 
+import ch.qos.logback.classic.gaffer.GafferUtil;
+import com.codahale.metrics.CachedGauge;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
@@ -51,6 +54,14 @@ public class Main {
         final Long refreshRate = awsConfig.getDuration("refreshRate", TimeUnit.MILLISECONDS);
 
         final AWSDatabaseHolder dbHolder = new AWSDatabaseHolder(awsConfig);
+
+        final Gauge<Long> cacheAgeGauge = new CachedGauge<Long>(1, TimeUnit.MINUTES) {
+            @Override
+            protected Long loadValue() {
+                return dbHolder.getCurrent().getAgeInMs();
+            }
+        };
+        metricRegistry.register("billow.database.age.ms", cacheAgeGauge);
 
         final Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
         scheduler.getContext().put(AWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
