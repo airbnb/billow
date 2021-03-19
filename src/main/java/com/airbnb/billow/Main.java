@@ -62,10 +62,17 @@ public class Main {
                 return dbHolder.getCurrent().getAgeInMs();
             }
         };
-        metricRegistry.register("billow.database.age.ms", cacheAgeGauge);
+
+        final String databaseAgeMetricName = MetricRegistry.name("billow", "database", "age", "ms");
+        final String jobFailureMetricName = MetricRegistry.name("billow", "database", "refresh", "failure");
+        final String jobSuccessMetricName = MetricRegistry.name("billow", "database", "refresh", "success");
+
+        metricRegistry.register(databaseAgeMetricName, cacheAgeGauge);
 
         final Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
         scheduler.getContext().put(AWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.FAILURE_COUNTER_KEY, metricRegistry.counter(jobFailureMetricName));
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.SUCCESS_COUNTER_KEY, metricRegistry.counter(jobSuccessMetricName));
         scheduler.start();
 
         final SimpleTrigger trigger = newTrigger().
