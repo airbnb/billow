@@ -122,7 +122,6 @@ public class AWSDatabase {
 
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
-        /*
         do {
             log.debug("Performing IAM request: {}", listUsersRequest);
             listUsersResult = iamClient.listUsers(listUsersRequest);
@@ -141,7 +140,7 @@ public class AWSDatabase {
                 }
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
-        } while (listUsersResult.isTruncated());        TODO uncomment */
+        } while (listUsersResult.isTruncated());
         this.iamUsers = usersBuilder.build();
 
 
