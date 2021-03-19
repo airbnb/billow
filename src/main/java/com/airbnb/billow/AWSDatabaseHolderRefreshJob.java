@@ -9,12 +9,14 @@ import org.quartz.SchedulerException;
 public class AWSDatabaseHolderRefreshJob implements Job {
     public static final String DB_KEY              = "db";
     public static final String FAILURE_COUNTER_KEY = "failure_counter";
+    public static final String START_COUNTER_KEY   = "start_counter";
     public static final String SUCCESS_COUNTER_KEY = "success_counter";
     public static final String NAME                = "dbRefresh";
 
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
         try {
+            increment(START_COUNTER_KEY, context);
             ((AWSDatabaseHolder) context.getScheduler().getContext().get(DB_KEY)).rebuild();
             increment(SUCCESS_COUNTER_KEY, context);
         } catch (SchedulerException e) {
