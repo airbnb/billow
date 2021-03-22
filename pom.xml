@@ -42,7 +42,7 @@
         <jackson.version>2.9.8</jackson.version>
         <joda-time.version>2.3</joda-time.version>
         <ognl.version>3.0.8</ognl.version>
-        <quartz.version>2.2.1</quartz.version>
+        <quartz.version>2.3.2</quartz.version>
         <maven-compiler-plugin.version>3.1</maven-compiler-plugin.version>
         <maven-shade-plugin.version>2.1</maven-shade-plugin.version>
     </properties>
