@@ -1,5 +1,7 @@
 package com.airbnb.billow;
 
+import com.codahale.metrics.CachedGauge;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
@@ -13,6 +15,8 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.coursera.metrics.datadog.DatadogReporter;
+import org.coursera.metrics.datadog.transport.UdpTransport;
 import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -52,8 +56,25 @@ public class Main {
 
         final AWSDatabaseHolder dbHolder = new AWSDatabaseHolder(awsConfig);
 
+        final Gauge<Long> cacheAgeGauge = new CachedGauge<Long>(1, TimeUnit.MINUTES) {
+            @Override
+            protected Long loadValue() {
+                return dbHolder.getCurrent().getAgeInMs();
+            }
+        };
+
+        final String databaseAgeMetricName = MetricRegistry.name("billow", "database", "age", "ms");
+        final String jobFailureMetricName  = MetricRegistry.name("billow", "database", "refresh", "start");
+        final String jobStartMetricName    = MetricRegistry.name("billow", "database", "refresh", "failure");
+        final String jobSuccessMetricName  = MetricRegistry.name("billow", "database", "refresh", "success");
+
+        metricRegistry.register(databaseAgeMetricName, cacheAgeGauge);
+
         final Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
         scheduler.getContext().put(AWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.START_COUNTER_KEY, metricRegistry.counter(jobStartMetricName));
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.FAILURE_COUNTER_KEY, metricRegistry.counter(jobFailureMetricName));
+        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.SUCCESS_COUNTER_KEY, metricRegistry.counter(jobSuccessMetricName));
         scheduler.start();
 
         final SimpleTrigger trigger = newTrigger().
@@ -93,6 +114,15 @@ public class Main {
 
         final ServletContextHandler adminHandler = new ServletContextHandler();
         adminHandler.addServlet(new ServletHolder(new AdminServlet()), "/*");
+
+        final Config datadogConfig = config.getConfig("datadog");
+        if (datadogConfig.getBoolean("enabled")) {
+            log.info("Enabling datadog reporting...");
+            int datadogPort = datadogConfig.hasPath("port") ? datadogConfig.getInt("port") : 8125;
+            DatadogReporter datadogReporter = DatadogReporter.forRegistry(metricRegistry).
+                    withTransport(new UdpTransport.Builder().withPort(datadogPort).build()).build();
+            datadogReporter.start(1, TimeUnit.MINUTES);
+        }
 
         final ServletContext adminContext = adminHandler.getServletContext();
         adminContext.setAttribute(MetricsServlet.METRICS_REGISTRY, metricRegistry);

@@ -143,6 +143,7 @@ public class AWSDatabase {
         } while (listUsersResult.isTruncated());
         this.iamUsers = usersBuilder.build();
 
+
         /*
          * ElasticCache
          */
