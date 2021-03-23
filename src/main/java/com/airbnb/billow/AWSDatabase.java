@@ -7,14 +7,12 @@ import com.amazonaws.services.elasticache.model.NodeGroupMember;
 import com.amazonaws.services.elasticache.model.ReplicationGroup;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainRequest;
 import com.amazonaws.services.elasticsearch.model.DescribeElasticsearchDomainResult;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
@@ -63,17 +61,18 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMultimap;
 
 @Slf4j
-@Data
+@ToString
+@EqualsAndHashCode
+@RequiredArgsConstructor
 public class AWSDatabase {
-    private final ImmutableMultimap<String, EC2Instance> ec2Instances;
-    private final ImmutableMultimap<String, DynamoTable> dynamoTables;
-    private final ImmutableMultimap<String, RDSInstance> rdsInstances;
-    private final ImmutableMultimap<String, SecurityGroup> ec2SGs;
-    private final ImmutableMultimap<String, SQSQueue> sqsQueues;
-    private final ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters;
-    private final ImmutableMultimap<String, ElasticsearchCluster> elasticsearchClusters;
-    private final ImmutableList<IAMUserWithKeys> iamUsers;
-    private final long timestamp;
+    private TimestampedData<ImmutableMultimap<String, EC2Instance>> ec2Instances;
+    private TimestampedData<ImmutableMultimap<String, DynamoTable>> dynamoTables;
+    private TimestampedData<ImmutableMultimap<String, RDSInstance>> rdsInstances;
+    private TimestampedData<ImmutableMultimap<String, SecurityGroup>> ec2SGs;
+    private TimestampedData<ImmutableMultimap<String, SQSQueue>> sqsQueues;
+    private TimestampedData<ImmutableMultimap<String, ElasticacheCluster>> elasticacheClusters;
+    private TimestampedData<ImmutableMultimap<String, ElasticsearchCluster>> elasticsearchClusters;
+    private TimestampedData<ImmutableList<IAMUserWithKeys>> iamUsers;
     private String awsAccountNumber;
     private String awsARNPartition;
 
@@ -87,9 +86,6 @@ public class AWSDatabase {
                 final AmazonIdentityManagement iamClient,
                 final String configAWSAccountNumber,
                 final String configAWSARNPartition) {
-        timestamp = System.currentTimeMillis();
-        log.info("Building AWS DB with timestamp {}", timestamp);
-
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
         } else {
@@ -104,46 +100,118 @@ public class AWSDatabase {
             awsARNPartition = configAWSARNPartition;
         }
 
-        this.iamUsers = loadIAM(iamClient);
-        this.elasticacheClusters = loadElasticache(elasticacheClients);
-        this.elasticsearchClusters = loadElasticsearch(elasticsearchClients);
-        this.sqsQueues = loadSQS(sqsClients);
-        this.dynamoTables = loadDynamo(dynamoClients);
-        this.ec2Instances = loadEC2Instances(ec2Clients);
-        this.ec2SGs = loadEC2SGs(ec2Clients);
-        this.rdsInstances = loadRDS(rdsClients);
-
+        refreshIamUsers(iamClient);
+        refreshElasticacheClusters(elasticacheClients);
+        refreshElasticsearchClusters(elasticsearchClients);
+        refreshSqsQueues(sqsClients);
+        refreshDynamoTables(dynamoClients);
+        refreshEc2Instances(ec2Clients);
+        refreshEc2SGs(ec2Clients);
+        refreshRdsInstances(rdsClients);
         log.info("Done building AWS DB");
     }
 
-    private AWSDatabase(ImmutableMultimap<String, EC2Instance> ec2Instances,
-                        ImmutableMultimap<String, DynamoTable> dynamoTables,
-                        ImmutableMultimap<String, RDSInstance> rdsInstances,
-                        ImmutableMultimap<String, SecurityGroup> ec2SGs,
-                        ImmutableMultimap<String, SQSQueue> sqsQueues,
-                        ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters,
-                        ImmutableMultimap<String, ElasticsearchCluster> elasticsearchClusters,
-                        ImmutableList<IAMUserWithKeys> iamUsers,
-                        long timestamp,
-                        String awsAccountNumber,
-                        String awsARNPartition) {
-        this.ec2Instances = ec2Instances;
-        this.dynamoTables = dynamoTables;
-        this.rdsInstances = rdsInstances;
-        this.ec2SGs = ec2SGs;
-        this.sqsQueues = sqsQueues;
-        this.elasticacheClusters = elasticacheClusters;
-        this.elasticsearchClusters = elasticsearchClusters;
-        this.iamUsers = iamUsers;
-        this.timestamp = timestamp;
-        this.awsAccountNumber = awsAccountNumber;
-        this.awsARNPartition = awsARNPartition;
+    /**
+     * @return the earliest timestamp of all data in the DB
+     */
+    public long getTimestamp() {
+        return Collections.min(Arrays.asList(
+                ec2Instances.getTimestamp(),
+                dynamoTables.getTimestamp(),
+                rdsInstances.getTimestamp(),
+                ec2SGs.getTimestamp(),
+                sqsQueues.getTimestamp(),
+                elasticsearchClusters.getTimestamp(),
+                elasticsearchClusters.getTimestamp(),
+                iamUsers.getTimestamp()
+        ));
     }
 
+    public long getAgeInMs() {
+        return System.currentTimeMillis() - getTimestamp();
+    }
+
+    /**
+     * Public getters for AWS data to hide the TimestampedData wrapped class from users of this class
+     */
+
+    public ImmutableMultimap<String, EC2Instance> getEc2Instances() {
+        return ec2Instances.getData();
+    }
+
+    public ImmutableMultimap<String, DynamoTable> getDynamoTables() {
+        return dynamoTables.getData();
+    }
+
+    public ImmutableMultimap<String, RDSInstance> getRdsInstances() {
+        return rdsInstances.getData();
+    }
+
+    public ImmutableMultimap<String, SecurityGroup> getEc2SGs() {
+        return ec2SGs.getData();
+    }
+
+    public ImmutableMultimap<String, SQSQueue> getSqsQueues() {
+        return sqsQueues.getData();
+    }
+
+    public ImmutableMultimap<String, ElasticacheCluster> getElasticacheClusters() {
+        return elasticacheClusters.getData();
+    }
+
+    public ImmutableList<IAMUserWithKeys> getIamUsers() {
+        return iamUsers.getData();
+    }
+
+    public ImmutableMultimap<String, ElasticsearchCluster> getElasticsearchClusters() {
+        return elasticsearchClusters.getData();
+    }
+
+    /**
+     * Public API for updating data after initial build
+     */
+
+    public void refreshEc2Instances(final Map<String, AmazonEC2Client> ec2Clients) {
+        this.ec2Instances = TimestampedData.withTimestamp(() -> loadEC2Instances(ec2Clients));
+    }
+
+    public void refreshDynamoTables(final Map<String, AmazonDynamoDBClient> dynamoClients) {
+        this.dynamoTables = TimestampedData.withTimestamp(() -> loadDynamo(dynamoClients));
+    }
+
+    public void refreshRdsInstances(final Map<String, AmazonRDSClient> rdsClients) {
+        this.rdsInstances = TimestampedData.withTimestamp(() -> loadRDS(rdsClients));
+    }
+
+    public void refreshEc2SGs(final Map<String, AmazonEC2Client> ec2Clients) {
+        this.ec2SGs = TimestampedData.withTimestamp(() -> loadEC2SGs(ec2Clients));
+    }
+
+    public void refreshSqsQueues(final Map<String, AmazonSQSClient> sqsClients) {
+        this.sqsQueues = TimestampedData.withTimestamp(() -> loadSQS(sqsClients));
+    }
+
+    public void refreshElasticacheClusters(Map<String, AmazonElastiCacheClient> elasticacheClients) {
+        this.elasticacheClusters = TimestampedData.withTimestamp(() -> loadElasticache(elasticacheClients));
+    }
+
+    public void refreshIamUsers(final AmazonIdentityManagement iamClient) {
+       this.iamUsers = TimestampedData.withTimestamp(() -> loadIAM(iamClient));
+    }
+
+    public void refreshElasticsearchClusters(final Map<String, AWSElasticsearchClient> elasticsearchClients) {
+        this.elasticsearchClusters = TimestampedData.withTimestamp(() -> loadElasticsearch(elasticsearchClients));
+    }
+
+    /**
+     * Private helper methods for loading data from the AWS API
+     */
     private ImmutableList<IAMUserWithKeys> loadIAM(final AmazonIdentityManagement iamClient) {
         log.info("Getting IAM keys");
         final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
+        return usersBuilder.build();
 
+        /*
         final ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
         do {
@@ -166,6 +234,8 @@ public class AWSDatabase {
             listUsersRequest.setMarker(listUsersResult.getMarker());
         } while (listUsersResult.isTruncated());
         return usersBuilder.build();
+
+         */
     }
 
     private ImmutableMultimap<String, ElasticacheCluster> loadElasticache(final Map<String, AmazonElastiCacheClient> elasticacheClients) {
@@ -412,10 +482,6 @@ public class AWSDatabase {
             } while (result.getMarker() != null);
         }
         return rdsBuilder.build();
-    }
-
-    public long getAgeInMs() {
-        return System.currentTimeMillis() - getTimestamp();
     }
 
     private String rdsARN(String partition, String regionName, String accountNumber, DBInstance instance) {

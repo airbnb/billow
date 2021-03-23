@@ -1,5 +1,6 @@
 package com.airbnb.billow;
 
+import com.airbnb.billow.jobs.*;
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
@@ -22,6 +23,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
 import org.quartz.SimpleTrigger;
 import org.quartz.impl.StdSchedulerFactory;
 
@@ -71,23 +73,21 @@ public class Main {
         metricRegistry.register(databaseAgeMetricName, cacheAgeGauge);
 
         final Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
-        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
-        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.START_COUNTER_KEY, metricRegistry.counter(jobStartMetricName));
-        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.FAILURE_COUNTER_KEY, metricRegistry.counter(jobFailureMetricName));
-        scheduler.getContext().put(AWSDatabaseHolderRefreshJob.SUCCESS_COUNTER_KEY, metricRegistry.counter(jobSuccessMetricName));
+        scheduler.getContext().put(BaseAWSDatabaseHolderRefreshJob.DB_KEY, dbHolder);
+        scheduler.getContext().put(BaseAWSDatabaseHolderRefreshJob.START_COUNTER_KEY, metricRegistry.counter(jobStartMetricName));
+        scheduler.getContext().put(BaseAWSDatabaseHolderRefreshJob.FAILURE_COUNTER_KEY, metricRegistry.counter(jobFailureMetricName));
+        scheduler.getContext().put(BaseAWSDatabaseHolderRefreshJob.SUCCESS_COUNTER_KEY, metricRegistry.counter(jobSuccessMetricName));
         scheduler.start();
 
-        final SimpleTrigger trigger = newTrigger().
-                withIdentity(AWSDatabaseHolderRefreshJob.NAME).
-                startNow().
-                withSchedule(simpleSchedule().withIntervalInMilliseconds(refreshRate).repeatForever()).
-                build();
+        scheduleJob(scheduler, DynamoRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, Ec2InstanceRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, Ec2SGRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, ElasticacheRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, ElasticsearchRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, IamRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, RdsRefreshJob.class, refreshRate);
+        scheduleJob(scheduler, SqsRefreshJob.class, refreshRate);
 
-        final JobDetail jobDetail = newJob(AWSDatabaseHolderRefreshJob.class).
-                withIdentity(AWSDatabaseHolderRefreshJob.NAME).
-                build();
-
-        scheduler.scheduleJob(jobDetail, trigger);
 
         log.info("Creating age health check");
         healthCheckRegistry.register("DB", new HealthCheck() {
@@ -174,5 +174,19 @@ public class Main {
                     httpConf.setSendDateHeader(false);
                 }
         }
+    }
+
+    private static void scheduleJob(Scheduler scheduler, Class jobClass, Long refreshRate) throws SchedulerException {
+        final SimpleTrigger trigger = newTrigger().
+                withIdentity(jobClass.toString()).
+                startNow().
+                withSchedule(simpleSchedule().withIntervalInMilliseconds(refreshRate).repeatForever()).
+                build();
+
+        final JobDetail jobDetail = newJob(jobClass).
+                withIdentity(jobClass.toString()).
+                build();
+
+        scheduler.scheduleJob(jobDetail, trigger);
     }
 }

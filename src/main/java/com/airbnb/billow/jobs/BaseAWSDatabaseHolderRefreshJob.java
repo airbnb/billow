@@ -1,17 +1,17 @@
-package com.airbnb.billow;
+package com.airbnb.billow.jobs;
 
+import com.airbnb.billow.AWSDatabaseHolder;
 import com.codahale.metrics.Counter;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.quartz.SchedulerException;
 
-public class AWSDatabaseHolderRefreshJob implements Job {
+public abstract class BaseAWSDatabaseHolderRefreshJob implements Job {
     public static final String DB_KEY              = "db";
     public static final String FAILURE_COUNTER_KEY = "failure_counter";
     public static final String START_COUNTER_KEY   = "start_counter";
     public static final String SUCCESS_COUNTER_KEY = "success_counter";
-    public static final String NAME                = "dbRefresh";
 
     @Override
     public void execute(JobExecutionContext context) throws JobExecutionException {
@@ -24,6 +24,8 @@ public class AWSDatabaseHolderRefreshJob implements Job {
             throw new JobExecutionException(e);
         }
     }
+
+    abstract void refresh(AWSDatabaseHolder dbHolder);
 
     private void increment(String counterName, JobExecutionContext context) {
         try {
