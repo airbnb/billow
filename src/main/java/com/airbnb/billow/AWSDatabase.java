@@ -77,6 +77,7 @@ public class AWSDatabase {
     private String awsAccountNumber;
     private String awsARNPartition;
 
+
     AWSDatabase(final Map<String, AmazonEC2Client> ec2Clients,
                 final Map<String, AmazonRDSClient> rdsClients,
                 final Map<String, AmazonDynamoDBClient> dynamoClients,
@@ -88,15 +89,6 @@ public class AWSDatabase {
                 final String configAWSARNPartition) {
         timestamp = System.currentTimeMillis();
         log.info("Building AWS DB with timestamp {}", timestamp);
-
-        log.info("Getting EC2 instances");
-        final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<>();
-        final ImmutableMultimap.Builder<String, DynamoTable> dynamoTableBuilder = new ImmutableMultimap.Builder<>();
-        final ImmutableMultimap.Builder<String, SQSQueue> sqsQueueBuilder = new ImmutableMultimap.Builder<>();
-        final ImmutableMultimap.Builder<String, ElasticacheCluster> elasticacheClusterBuilder =
-            new ImmutableMultimap.Builder<>();
-        final ImmutableMultimap.Builder<String, ElasticsearchCluster> elasticsearchClusterBuilder =
-            new ImmutableMultimap.Builder<>();
 
         if (configAWSAccountNumber == null) {
             awsAccountNumber = "";
@@ -112,11 +104,43 @@ public class AWSDatabase {
             awsARNPartition = configAWSARNPartition;
         }
 
-        /*
-         * IAM keys
-         * Put this in the beginning to populate the awsAccountNumber.
-         */
+        this.iamUsers = loadIAM(iamClient);
+        this.elasticacheClusters = loadElasticache(elasticacheClients);
+        this.elasticsearchClusters = loadElasticsearch(elasticsearchClients);
+        this.sqsQueues = loadSQS(sqsClients);
+        this.dynamoTables = loadDynamo(dynamoClients);
+        this.ec2Instances = loadEC2Instances(ec2Clients);
+        this.ec2SGs = loadEC2SGs(ec2Clients);
+        this.rdsInstances = loadRDS(rdsClients);
 
+        log.info("Done building AWS DB");
+    }
+
+    private AWSDatabase(ImmutableMultimap<String, EC2Instance> ec2Instances,
+                        ImmutableMultimap<String, DynamoTable> dynamoTables,
+                        ImmutableMultimap<String, RDSInstance> rdsInstances,
+                        ImmutableMultimap<String, SecurityGroup> ec2SGs,
+                        ImmutableMultimap<String, SQSQueue> sqsQueues,
+                        ImmutableMultimap<String, ElasticacheCluster> elasticacheClusters,
+                        ImmutableMultimap<String, ElasticsearchCluster> elasticsearchClusters,
+                        ImmutableList<IAMUserWithKeys> iamUsers,
+                        long timestamp,
+                        String awsAccountNumber,
+                        String awsARNPartition) {
+        this.ec2Instances = ec2Instances;
+        this.dynamoTables = dynamoTables;
+        this.rdsInstances = rdsInstances;
+        this.ec2SGs = ec2SGs;
+        this.sqsQueues = sqsQueues;
+        this.elasticacheClusters = elasticacheClusters;
+        this.elasticsearchClusters = elasticsearchClusters;
+        this.iamUsers = iamUsers;
+        this.timestamp = timestamp;
+        this.awsAccountNumber = awsAccountNumber;
+        this.awsARNPartition = awsARNPartition;
+    }
+
+    private ImmutableList<IAMUserWithKeys> loadIAM(final AmazonIdentityManagement iamClient) {
         log.info("Getting IAM keys");
         final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
 
@@ -141,13 +165,11 @@ public class AWSDatabase {
             }
             listUsersRequest.setMarker(listUsersResult.getMarker());
         } while (listUsersResult.isTruncated());
-        this.iamUsers = usersBuilder.build();
+        return usersBuilder.build();
+    }
 
-
-        /*
-         * ElasticCache
-         */
-
+    private ImmutableMultimap<String, ElasticacheCluster> loadElasticache(final Map<String, AmazonElastiCacheClient> elasticacheClients) {
+        ImmutableMultimap.Builder<String, ElasticacheCluster> elasticacheClusterBuilder = ImmutableMultimap.builder();
         for (Map.Entry<String, AmazonElastiCacheClient> clientPair : elasticacheClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonElastiCacheClient client = clientPair.getValue();
@@ -181,11 +203,11 @@ public class AWSDatabase {
 
                 for (CacheCluster cluster : describeCacheClustersResult.getCacheClusters()) {
                     com.amazonaws.services.elasticache.model.ListTagsForResourceRequest tagsRequest =
-                        new com.amazonaws.services.elasticache.model.ListTagsForResourceRequest()
-                            .withResourceName(elasticacheARN(awsARNPartition, regionName, awsAccountNumber, cluster));
+                            new com.amazonaws.services.elasticache.model.ListTagsForResourceRequest()
+                                    .withResourceName(elasticacheARN(awsARNPartition, regionName, awsAccountNumber, cluster));
 
                     com.amazonaws.services.elasticache.model.ListTagsForResourceResult tagsResult =
-                        client.listTagsForResource(tagsRequest);
+                            client.listTagsForResource(tagsRequest);
                     elasticacheClusterBuilder.putAll(regionName, new ElasticacheCluster(cluster, clusterIdToNodeGroupMember.get(cluster.getCacheClusterId()), tagsResult.getTagList()));
                     cntClusters++;
                 }
@@ -194,15 +216,14 @@ public class AWSDatabase {
 
                 describeCacheClustersRequest.setMarker(describeCacheClustersResult.getMarker());
             } while (describeCacheClustersResult.getMarker() != null);
-
-
         }
-        this.elasticacheClusters = elasticacheClusterBuilder.build();
 
-        /*
-         * Elasticsearch
-         */
+        return elasticacheClusterBuilder.build();
+    }
 
+    private ImmutableMultimap<String, ElasticsearchCluster> loadElasticsearch(final Map<String, AWSElasticsearchClient> elasticsearchClients) {
+        final ImmutableMultimap.Builder<String, ElasticsearchCluster> elasticsearchClusterBuilder =
+                new ImmutableMultimap.Builder<>();
         for (Map.Entry<String, AWSElasticsearchClient> clientPair : elasticsearchClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AWSElasticsearchClient client = clientPair.getValue();
@@ -224,12 +245,11 @@ public class AWSDatabase {
             log.debug("Found {} Elasticsearch domains in {}", domainInfoList.size(), regionName);
 
         }
-        this.elasticsearchClusters = elasticsearchClusterBuilder.build();
+        return elasticsearchClusterBuilder.build();
+    }
 
-        /*
-         * SQS Queues
-         */
-
+    private ImmutableMultimap<String, SQSQueue> loadSQS(final Map<String, AmazonSQSClient> sqsClients) {
+        final ImmutableMultimap.Builder<String, SQSQueue> sqsQueueBuilder = new ImmutableMultimap.Builder<>();
         for (Map.Entry<String, AmazonSQSClient> clientPair : sqsClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonSQSClient client = clientPair.getValue();
@@ -254,10 +274,10 @@ public class AWSDatabase {
                 String queueArn = map.get(SQSQueue.ATTR_QUEUE_ARN);
 
                 SQSQueue queue = new SQSQueue(url, Long.valueOf(approximateNumberOfMessagesDelayed),
-                    Long.valueOf(receiveMessageWaitTimeSeconds), Long.valueOf(createdTimestamp),
-                    Long.valueOf(delaySeconds), Long.valueOf(messageRetentionPeriod), Long.valueOf(maximumMessageSize),
-                    Long.valueOf(visibilityTimeout), Long.valueOf(approximateNumberOfMessages),
-                    Long.valueOf(lastModifiedTimestamp), queueArn);
+                        Long.valueOf(receiveMessageWaitTimeSeconds), Long.valueOf(createdTimestamp),
+                        Long.valueOf(delaySeconds), Long.valueOf(messageRetentionPeriod), Long.valueOf(maximumMessageSize),
+                        Long.valueOf(visibilityTimeout), Long.valueOf(approximateNumberOfMessages),
+                        Long.valueOf(lastModifiedTimestamp), queueArn);
 
                 sqsQueueBuilder.putAll(regionName, queue);
                 cnt++;
@@ -265,12 +285,11 @@ public class AWSDatabase {
 
             log.debug("Found {} queues in {}", cnt, regionName);
         }
-        this.sqsQueues = sqsQueueBuilder.build();
+        return sqsQueueBuilder.build();
+    }
 
-        /*
-         * DynamoDB Tables
-         */
-
+    private ImmutableMultimap<String, DynamoTable> loadDynamo(final Map<String, AmazonDynamoDBClient> dynamoClients) {
+        final ImmutableMultimap.Builder<String, DynamoTable> dynamoTableBuilder = new ImmutableMultimap.Builder<>();
         for (Map.Entry<String, AmazonDynamoDBClient> clientPair : dynamoClients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonDynamoDBClient client = clientPair.getValue();
@@ -288,12 +307,12 @@ public class AWSDatabase {
 
             log.debug("Found {} dynamodbs in {}", cnt, regionName);
         }
-        this.dynamoTables = dynamoTableBuilder.build();
+        return dynamoTableBuilder.build();
+    }
 
-        /*
-         * EC2 Instances
-         */
-
+    private ImmutableMultimap<String, EC2Instance> loadEC2Instances(final Map<String, AmazonEC2Client> ec2Clients) {
+        final ImmutableMultimap.Builder<String, EC2Instance> ec2InstanceBuilder = new ImmutableMultimap.Builder<>();
+        log.info("Getting EC2 instances");
         for (Map.Entry<String, AmazonEC2Client> clientPair : ec2Clients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonEC2Client client = clientPair.getValue();
@@ -307,12 +326,10 @@ public class AWSDatabase {
                     ec2InstanceBuilder.putAll(regionName, new EC2Instance(instance));
             }
         }
-        this.ec2Instances = ec2InstanceBuilder.build();
+        return ec2InstanceBuilder.build();
+    }
 
-        /*
-         * EC2 security groups
-         */
-
+    private ImmutableMultimap<String, SecurityGroup> loadEC2SGs(final Map<String, AmazonEC2Client> ec2Clients) {
         log.info("Getting EC2 security groups");
         final ImmutableMultimap.Builder<String, SecurityGroup> ec2SGbuilder = new ImmutableMultimap.Builder<String, SecurityGroup>();
         for (Map.Entry<String, AmazonEC2Client> clientPair : ec2Clients.entrySet()) {
@@ -322,13 +339,10 @@ public class AWSDatabase {
             log.debug("Found {} security groups in {}", securityGroups.size(), regionName);
             ec2SGbuilder.putAll(regionName, securityGroups);
         }
-        this.ec2SGs = ec2SGbuilder.build();
+        return ec2SGbuilder.build();
+    }
 
-
-        /*
-         * RDS Instances
-         */
-
+    private ImmutableMultimap<String, RDSInstance> loadRDS(final Map<String, AmazonRDSClient> rdsClients) {
         log.info("Getting RDS instances and clusters");
         final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<String, RDSInstance>();
 
@@ -374,32 +388,30 @@ public class AWSDatabase {
                     List<String> snapshots = new ArrayList<>();
                     // Get snapshot for masters only.
                     if (RDSInstance.checkIfMaster(instance, instanceIdToCluster.get(instance.getDBInstanceIdentifier()))) {
-                       if ("aurora".equals(instance.getEngine()) || "aurora-mysql".equals(instance.getEngine())) {
-                           DescribeDBClusterSnapshotsRequest snapshotsRequest = new DescribeDBClusterSnapshotsRequest()
-                               .withDBClusterIdentifier(instance.getDBClusterIdentifier());
-                           DescribeDBClusterSnapshotsResult snapshotsResult = client.describeDBClusterSnapshots(snapshotsRequest);
-                           for (DBClusterSnapshot s : snapshotsResult.getDBClusterSnapshots()) {
-                               snapshots.add(s.getDBClusterSnapshotIdentifier());
-                           }
-                       } else {
-                           DescribeDBSnapshotsRequest snapshotsRequest = new DescribeDBSnapshotsRequest()
-                               .withDBInstanceIdentifier(instance.getDBInstanceIdentifier());
-                           DescribeDBSnapshotsResult snapshotsResult = client.describeDBSnapshots(snapshotsRequest);
-                           for (DBSnapshot s : snapshotsResult.getDBSnapshots()) {
-                               snapshots.add(s.getDBSnapshotIdentifier());
-                           }
-                       }
+                        if ("aurora".equals(instance.getEngine()) || "aurora-mysql".equals(instance.getEngine())) {
+                            DescribeDBClusterSnapshotsRequest snapshotsRequest = new DescribeDBClusterSnapshotsRequest()
+                                    .withDBClusterIdentifier(instance.getDBClusterIdentifier());
+                            DescribeDBClusterSnapshotsResult snapshotsResult = client.describeDBClusterSnapshots(snapshotsRequest);
+                            for (DBClusterSnapshot s : snapshotsResult.getDBClusterSnapshots()) {
+                                snapshots.add(s.getDBClusterSnapshotIdentifier());
+                            }
+                        } else {
+                            DescribeDBSnapshotsRequest snapshotsRequest = new DescribeDBSnapshotsRequest()
+                                    .withDBInstanceIdentifier(instance.getDBInstanceIdentifier());
+                            DescribeDBSnapshotsResult snapshotsResult = client.describeDBSnapshots(snapshotsRequest);
+                            for (DBSnapshot s : snapshotsResult.getDBSnapshots()) {
+                                snapshots.add(s.getDBSnapshotIdentifier());
+                            }
+                        }
                     }
                     rdsBuilder.putAll(regionName, new RDSInstance(instance,
-                        instanceIdToCluster.get(instance.getDBInstanceIdentifier()), tagsResult.getTagList(), snapshots));
+                            instanceIdToCluster.get(instance.getDBInstanceIdentifier()), tagsResult.getTagList(), snapshots));
 
                 }
                 rdsRequest.setMarker(result.getMarker());
             } while (result.getMarker() != null);
         }
-        this.rdsInstances = rdsBuilder.build();
-
-        log.info("Done building AWS DB");
+        return rdsBuilder.build();
     }
 
     public long getAgeInMs() {
