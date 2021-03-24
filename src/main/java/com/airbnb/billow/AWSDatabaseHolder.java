@@ -129,6 +129,7 @@ public class AWSDatabaseHolder {
      * Build a fresh version of the DB completely from scratch
      */
     public void rebuild() {
+        log.info(String.format("Using AWS Account number: '%s'", awsAccountNumber));
         current = new AWSDatabase(
                 ec2Clients,
                 rdsClients,

@@ -87,6 +87,7 @@ public class AWSDatabase {
                 final String configAWSAccountNumber,
                 final String configAWSARNPartition) {
         if (configAWSAccountNumber == null) {
+            log.info("No AWS account number given");
             awsAccountNumber = "";
         } else {
             log.info("using account number '{}' from config", configAWSAccountNumber);
@@ -209,10 +210,8 @@ public class AWSDatabase {
     private ImmutableList<IAMUserWithKeys> loadIAM(final AmazonIdentityManagement iamClient) {
         log.info("Getting IAM keys");
         final ImmutableList.Builder<IAMUserWithKeys> usersBuilder = new ImmutableList.Builder<>();
-        return usersBuilder.build();
 
-        /*
-        final ListUsersRequest listUsersRequest = new ListUsersRequest();
+        ListUsersRequest listUsersRequest = new ListUsersRequest();
         ListUsersResult listUsersResult;
         do {
             log.debug("Performing IAM request: {}", listUsersRequest);
@@ -234,8 +233,6 @@ public class AWSDatabase {
             listUsersRequest.setMarker(listUsersResult.getMarker());
         } while (listUsersResult.isTruncated());
         return usersBuilder.build();
-
-         */
     }
 
     private ImmutableMultimap<String, ElasticacheCluster> loadElasticache(final Map<String, AmazonElastiCacheClient> elasticacheClients) {
