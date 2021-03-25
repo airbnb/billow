@@ -1,5 +1,6 @@
 package com.airbnb.billow;
 
+import com.google.common.collect.ImmutableList;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -124,17 +125,77 @@ public class AWSDatabaseHolder {
         rebuild();
     }
 
+    /**
+     * Build a fresh version of the DB completely from scratch
+     */
     public void rebuild() {
+        log.info(String.format("Using AWS Account number: '%s'", awsAccountNumber));
         current = new AWSDatabase(
-            ec2Clients,
-            rdsClients,
-            dynamoDBClients,
-            sqsClients,
-            elasticacheClients,
-            elasticsearchClients,
-            iamClient,
-            awsAccountNumber,
-            awsARNPartition);
+                ec2Clients,
+                rdsClients,
+                dynamoDBClients,
+                sqsClients,
+                elasticacheClients,
+                elasticsearchClients,
+                iamClient,
+                awsAccountNumber,
+                awsARNPartition);
+    }
+
+    /**
+     * Incrementally refresh ec2 instance data
+     */
+    public void refreshEc2Instances() {
+        current.refreshEc2Instances(ec2Clients);
+    }
+
+    /**
+     * Incrementally refresh dyanmo data
+     */
+    public void refreshDynamoTables() {
+        current.refreshDynamoTables(dynamoDBClients);
+    }
+
+    /**
+     * Incrementally refresh rds instance data
+     */
+    public void refreshRdsInstances() {
+        current.refreshRdsInstances(rdsClients);
+    }
+
+    /**
+     * Incrementally refresh EC2 security group data
+     */
+    public void refreshEc2SGs() {
+        current.refreshEc2SGs(ec2Clients);
+    }
+
+    /**
+     * Incrementally refresh sqs data
+     */
+    public void refreshSqsQueues() {
+        current.refreshSqsQueues(sqsClients);
+    }
+
+    /**
+     * Incrementally refresh elasticache data
+     */
+    public void refreshElasticacheClusters() {
+        current.refreshElasticacheClusters(elasticacheClients);
+    }
+
+    /**
+     * Incrementally refresh IAM data
+     */
+    public void refreshIamUsers() {
+        current.refreshIamUsers(iamClient);
+    }
+
+    /**
+     * Incrementally refresh elasticsearch data
+     */
+    public void refreshElasticsearchClusters() {
+        current.refreshElasticsearchClusters(elasticsearchClients);
     }
 
     public HealthCheck.Result healthy() {

@@ -6,7 +6,7 @@
 
     <groupId>com.airbnb.billow</groupId>
     <artifactId>billow</artifactId>
-    <version>2.21</version>
+    <version>2.24</version>
 
     <licenses>
         <license>
@@ -207,8 +207,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
         </plugins>
