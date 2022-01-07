@@ -45,7 +45,12 @@ public class ElasticsearchCluster {
     this.instanceCount = esConfig.getInstanceCount();
     this.dedicatedMasterEnabled = esConfig.getDedicatedMasterEnabled();
     this.zoneAwarenessEnabled = esConfig.getZoneAwarenessEnabled();
-    this.dedicatedMasterType = esConfig.getDedicatedMasterType();
-    this.dedicatedMasterCount = esConfig.getDedicatedMasterCount();
+    if (esConfig.getDedicatedMasterEnabled()) {
+      this.dedicatedMasterCount = esConfig.getDedicatedMasterCount();
+      this.dedicatedMasterType = esConfig.getDedicatedMasterType();
+    } else {
+      this.dedicatedMasterCount = 0;
+      this.dedicatedMasterType = "";
+    }
   }
 }
