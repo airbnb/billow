@@ -314,7 +314,7 @@ public class AWSDatabase {
          */
 
         log.info("Getting EC2 security groups");
-        final ImmutableMultimap.Builder<String, SecurityGroup> ec2SGbuilder = new ImmutableMultimap.Builder<String, SecurityGroup>();
+        final ImmutableMultimap.Builder<String, SecurityGroup> ec2SGbuilder = new ImmutableMultimap.Builder<>();
         for (Map.Entry<String, AmazonEC2Client> clientPair : ec2Clients.entrySet()) {
             final String regionName = clientPair.getKey();
             final AmazonEC2Client client = clientPair.getValue();
@@ -330,7 +330,7 @@ public class AWSDatabase {
          */
 
         log.info("Getting RDS instances and clusters");
-        final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<String, RDSInstance>();
+        final ImmutableMultimap.Builder<String, RDSInstance> rdsBuilder = new ImmutableMultimap.Builder<>();
 
         for (Map.Entry<String, AmazonRDSClient> clientPair : rdsClients.entrySet()) {
             final String regionName = clientPair.getKey();

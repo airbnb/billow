@@ -180,7 +180,7 @@ public class RDSInstance {
     private String getPrivateIp(String hostname) {
         try {
             InetAddress address = InetAddress.getByName(hostname); 
-            return address.getHostAddress().toString();
+            return address.getHostAddress();
         } catch (UnknownHostException e) {
             log.error("{}", e);
         } 
