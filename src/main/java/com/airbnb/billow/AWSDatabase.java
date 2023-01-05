@@ -376,7 +376,8 @@ public class AWSDatabase {
                     if (RDSInstance.checkIfMaster(instance, instanceIdToCluster.get(instance.getDBInstanceIdentifier()))) {
                        if ("aurora".equals(instance.getEngine()) || "aurora-mysql".equals(instance.getEngine())) {
                            DescribeDBClusterSnapshotsRequest snapshotsRequest = new DescribeDBClusterSnapshotsRequest()
-                               .withDBClusterIdentifier(instance.getDBClusterIdentifier());
+                               .withDBClusterIdentifier(instance.getDBClusterIdentifier())
+                               .withSnapshotType("Automated");
                            DescribeDBClusterSnapshotsResult snapshotsResult = client.describeDBClusterSnapshots(snapshotsRequest);
                            for (DBClusterSnapshot s : snapshotsResult.getDBClusterSnapshots()) {
                                snapshots.add(s.getDBClusterSnapshotIdentifier());
