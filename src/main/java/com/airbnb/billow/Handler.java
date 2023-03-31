@@ -52,7 +52,7 @@ public class Handler extends AbstractHandler {
     private final AWSDatabaseHolder dbHolder;
     private final long maxDBAgeInMs;
 
-    public static abstract class DBInstanceMixin extends DBInstance {
+    public abstract static class DBInstanceMixin extends DBInstance {
         @JsonIgnore
         @Override
         public abstract Boolean isMultiAZ();
@@ -66,13 +66,13 @@ public class Handler extends AbstractHandler {
         public abstract Boolean isPubliclyAccessible();
     }
 
-    public static abstract class PendingModifiedValuesMixin extends PendingModifiedValues {
+    public abstract static class PendingModifiedValuesMixin extends PendingModifiedValues {
         @JsonIgnore
         @Override
         public abstract Boolean isMultiAZ();
     }
 
-    public static abstract class DBInstanceStatusInfoMixin extends DBInstanceStatusInfo {
+    public abstract static class DBInstanceStatusInfoMixin extends DBInstanceStatusInfo {
         @JsonIgnore
         @Override
         public abstract Boolean isNormal();
