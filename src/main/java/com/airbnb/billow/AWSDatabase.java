@@ -253,11 +253,16 @@ public class AWSDatabase {
                 String lastModifiedTimestamp = map.get(SQSQueue.ATTR_LAST_MODIFIED_TIMESTAMP);
                 String queueArn = map.get(SQSQueue.ATTR_QUEUE_ARN);
 
+                com.amazonaws.services.sqs.model.ListQueueTagsRequest tagsRequest =
+                  new com.amazonaws.services.sqs.model.ListQueueTagsRequest().withQueueUrl(url);
+                com.amazonaws.services.sqs.model.ListQueueTagsResult tagsResult =
+                  client.listQueueTags(tagsRequest);
+
                 SQSQueue queue = new SQSQueue(url, Long.valueOf(approximateNumberOfMessagesDelayed),
                     Long.valueOf(receiveMessageWaitTimeSeconds), Long.valueOf(createdTimestamp),
                     Long.valueOf(delaySeconds), Long.valueOf(messageRetentionPeriod), Long.valueOf(maximumMessageSize),
                     Long.valueOf(visibilityTimeout), Long.valueOf(approximateNumberOfMessages),
-                    Long.valueOf(lastModifiedTimestamp), queueArn);
+                    Long.valueOf(lastModifiedTimestamp), queueArn, tagsResult.getTags());
 
                 sqsQueueBuilder.putAll(regionName, queue);
                 cnt++;
@@ -282,7 +287,14 @@ public class AWSDatabase {
             int cnt = 0;
             while (iterator.hasNext()) {
                 Table table = iterator.next();
-                dynamoTableBuilder.putAll(regionName, new DynamoTable(table));
+
+                com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest tagsRequest =
+                  new com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest().withResourceArn(
+                    table.getDescription().getTableArn());
+                com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceResult tagsResult =
+                    client.listTagsOfResource(tagsRequest);
+
+                dynamoTableBuilder.putAll(regionName, new DynamoTable(table, tagsResult.getTags()));
                 cnt++;
             }
 
