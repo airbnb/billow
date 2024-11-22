@@ -4,6 +4,8 @@ import lombok.Getter;
 
 import com.fasterxml.jackson.annotation.JsonFilter;
 
+import java.util.Map;
+
 @JsonFilter(SQSQueue.QUEUE_FILTER)
 public class SQSQueue {
     public static final String QUEUE_FILTER = "QueueFilter";
@@ -41,6 +43,8 @@ public class SQSQueue {
     private final Long lastModifiedTimestamp;
     @Getter
     private final String queueArn;
+    @Getter
+    private final Map<String, String> tags;
 
 
 
@@ -54,7 +58,8 @@ public class SQSQueue {
                     Long visibilityTimeout,
                     Long approximateNumberOfMessages,
                     Long lastModifiedTimestamp,
-                    String queueArn) {
+                    String queueArn,
+                    Map<String, String> tags) {
         this.url = url;
         this.approximateNumberOfMessagesDelayed = approximateNumberOfMessagesDelayed;
         this.receiveMessageWaitTimeSeconds = receiveMessageWaitTimeSeconds;
@@ -66,5 +71,6 @@ public class SQSQueue {
         this.approximateNumberOfMessages = approximateNumberOfMessages;
         this.lastModifiedTimestamp = lastModifiedTimestamp;
         this.queueArn = queueArn;
+        this.tags = tags;
     }
 }
