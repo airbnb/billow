@@ -64,8 +64,8 @@ public class Main {
         };
 
         final String databaseAgeMetricName = MetricRegistry.name("billow", "database", "age", "ms");
-        final String jobFailureMetricName  = MetricRegistry.name("billow", "database", "refresh", "start");
-        final String jobStartMetricName    = MetricRegistry.name("billow", "database", "refresh", "failure");
+        final String jobFailureMetricName  = MetricRegistry.name("billow", "database", "refresh", "failure");
+        final String jobStartMetricName    = MetricRegistry.name("billow", "database", "refresh", "start");
         final String jobSuccessMetricName  = MetricRegistry.name("billow", "database", "refresh", "success");
 
         metricRegistry.register(databaseAgeMetricName, cacheAgeGauge);
