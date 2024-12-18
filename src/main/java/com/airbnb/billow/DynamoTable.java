@@ -1,10 +1,15 @@
 package com.airbnb.billow;
 
 import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndexDescription;
+import com.amazonaws.services.dynamodbv2.model.Tag;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import lombok.Getter;
 
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import org.joda.time.DateTime;
@@ -39,8 +44,10 @@ public class DynamoTable {
     private final String provisionedThroughput;
     @Getter
     private final List<DynamoGSI> globalSecondaryIndexes;
+    @Getter
+    private final Map<String, String> tags;
 
-    public DynamoTable(Table table) {
+    public DynamoTable(Table table, AmazonDynamoDBClient client) {
         table.describe();
         tableName = table.getTableName();
         attributeDefinitions = table.getDescription().getAttributeDefinitions().toString();
@@ -55,6 +62,17 @@ public class DynamoTable {
         tableArn = table.getDescription().getTableArn();
         provisionedThroughput = table.getDescription().getProvisionedThroughput().toString();
         globalSecondaryIndexes = new ArrayList<>();
+
+        com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest tagsRequest =
+                new com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest().withResourceArn(
+                        table.getDescription().getTableArn());
+        com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceResult tagsResult =
+                client.listTagsOfResource(tagsRequest);
+
+        this.tags = new HashMap<>(tagsResult.getTags().size());
+        for(Tag tag : tagsResult.getTags()) {
+          this.tags.put(tag.getKey(), tag.getValue());
+        }
 
         if (table.getDescription().getGlobalSecondaryIndexes() != null) {
             for (GlobalSecondaryIndexDescription gsiDesc : table
