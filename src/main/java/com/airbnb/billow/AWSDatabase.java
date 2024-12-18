@@ -287,14 +287,7 @@ public class AWSDatabase {
             int cnt = 0;
             while (iterator.hasNext()) {
                 Table table = iterator.next();
-
-                com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest tagsRequest =
-                  new com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest().withResourceArn(
-                    table.getDescription().getTableArn());
-                com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceResult tagsResult =
-                    client.listTagsOfResource(tagsRequest);
-
-                dynamoTableBuilder.putAll(regionName, new DynamoTable(table, tagsResult.getTags()));
+                dynamoTableBuilder.putAll(regionName, new DynamoTable(table, client));
                 cnt++;
             }
 

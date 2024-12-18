@@ -9,6 +9,7 @@ import java.util.Map;
 
 import lombok.Getter;
 
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import org.joda.time.DateTime;
@@ -46,7 +47,7 @@ public class DynamoTable {
     @Getter
     private final Map<String, String> tags;
 
-    public DynamoTable(Table table, List<Tag> tags) {
+    public DynamoTable(Table table, AmazonDynamoDBClient client) {
         table.describe();
         tableName = table.getTableName();
         attributeDefinitions = table.getDescription().getAttributeDefinitions().toString();
@@ -62,8 +63,14 @@ public class DynamoTable {
         provisionedThroughput = table.getDescription().getProvisionedThroughput().toString();
         globalSecondaryIndexes = new ArrayList<>();
 
-        this.tags = new HashMap<>(tags.size());
-        for(Tag tag : tags) {
+        com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest tagsRequest =
+                new com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceRequest().withResourceArn(
+                        table.getDescription().getTableArn());
+        com.amazonaws.services.dynamodbv2.model.ListTagsOfResourceResult tagsResult =
+                client.listTagsOfResource(tagsRequest);
+
+        this.tags = new HashMap<>(tagsResult.getTags().size());
+        for(Tag tag : tagsResult.getTags()) {
           this.tags.put(tag.getKey(), tag.getValue());
         }
 
