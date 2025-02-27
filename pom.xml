@@ -34,7 +34,7 @@
         <aws.version>1.11.548</aws.version>
         <lombok.version>1.12.6</lombok.version>
         <guava.version>16.0.1</guava.version>
-        <jetty.version>9.3.24.v20180605</jetty.version>
+        <jetty.version>9.4.24.v20191120</jetty.version>
         <config.version>1.2.0</config.version>
         <metrics.version>3.0.2</metrics.version>
         <slf4j.version>1.7.6</slf4j.version>
