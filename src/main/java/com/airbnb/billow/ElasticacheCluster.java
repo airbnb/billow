@@ -74,8 +74,6 @@ public class ElasticacheCluster {
         this.cacheClusterId = cacheCluster.getCacheClusterId();
         if (cacheCluster.getConfigurationEndpoint() != null) {
             this.configurationEndpoint = cacheCluster.getConfigurationEndpoint().toString();
-        } else {
-            this.configurationEndpoint = null;
         }
         this.clientDownloadLandingPage = cacheCluster.getClientDownloadLandingPage();
         this.cacheNodeType = cacheCluster.getCacheNodeType();
