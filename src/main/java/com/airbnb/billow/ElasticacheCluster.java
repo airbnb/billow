@@ -72,6 +72,8 @@ public class ElasticacheCluster {
 
     public ElasticacheCluster(CacheCluster cacheCluster, NodeGroupMember nodeGroupMember, List<Tag> tagList) {
         this.cacheClusterId = cacheCluster.getCacheClusterId();
+        this.configurationEndpoint = cacheCluster.getConfigurationEndpoint() != null ? 
+            cacheCluster.getConfigurationEndpoint().getAddress() + ":" + cacheCluster.getConfigurationEndpoint().getPort() : null;
         this.clientDownloadLandingPage = cacheCluster.getClientDownloadLandingPage();
         this.cacheNodeType = cacheCluster.getCacheNodeType();
         this.engine = cacheCluster.getEngine();
