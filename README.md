@@ -37,6 +37,11 @@ The `ec2`, `dynamo`, `sqs` and `elasticache` queries support following optional 
   - `f=tableName,tableStatus`
   - `f=tableName`
 
+OGNL expressions are evaluated in a restricted context: they can read properties of the returned
+objects, call methods on strings, numbers, collections and dates, and use operators, but they cannot
+reference classes (`@java.lang.System@...`, `new ...`), call `getClass()`, or assign to anything.
+Expressions that try are rejected with a `400 Bad Request`.
+
 Sample query: show readCapacityUnits and tableName of all tables sorted by readCapacity:
 ``/dynamo?s=readCapacityUnits&&f=readCapacityUnits,tableName&&l=3``
 

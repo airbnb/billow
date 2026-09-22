@@ -31,7 +31,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.net.HttpHeaders;
-import ognl.Ognl;
 import ognl.OgnlException;
 import org.apache.http.entity.ContentType;
 import org.eclipse.jetty.server.Request;
@@ -379,11 +378,11 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return allTables;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
         final List<DynamoTable> tables = new ArrayList<>();
 
         for (DynamoTable table : allTables) {
-            final Object value = Ognl.getValue(compiled, table);
+            final Object value = QueryExpression.evaluate(compiled, table);
             if (value instanceof Boolean && (Boolean) value)
                 tables.add(table);
         }
@@ -397,11 +396,11 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return allQueues;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
         final List<SQSQueue> queues = new ArrayList<>();
 
         for (SQSQueue queue : allQueues) {
-            final Object value = Ognl.getValue(compiled, queue);
+            final Object value = QueryExpression.evaluate(compiled, queue);
             if (value instanceof Boolean && (Boolean) value)
                 queues.add(queue);
         }
@@ -415,11 +414,11 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return allClusters;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
         final List<ElasticacheCluster> clusters = new ArrayList<>();
 
         for (ElasticacheCluster cluster : allClusters) {
-            final Object value = Ognl.getValue(compiled, cluster);
+            final Object value = QueryExpression.evaluate(compiled, cluster);
             if (value instanceof Boolean && (Boolean) value)
                 clusters.add(cluster);
         }
@@ -432,14 +431,14 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return set;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
 
         final ArrayList<T> result = new ArrayList<>(set);
         Collections.sort(result, new Comparator<T>() {
             public int compare(T o1, T o2) {
                 try {
-                    final Object v1 = Ognl.getValue(compiled, o1);
-                    final Object v2 = Ognl.getValue(compiled, o2);
+                    final Object v1 = QueryExpression.evaluate(compiled, o1);
+                    final Object v2 = QueryExpression.evaluate(compiled, o2);
 
                     if (v1 instanceof Comparable) {
                         return ((Comparable) v1).compareTo(v2);
@@ -460,11 +459,11 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return allInstances;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
         final List<EC2Instance> instances = new ArrayList<>();
 
         for (EC2Instance instance : allInstances) {
-            final Object value = Ognl.getValue(compiled, instance);
+            final Object value = QueryExpression.evaluate(compiled, instance);
             if (value instanceof Boolean && (Boolean) value)
                 instances.add(instance);
         }
@@ -478,11 +477,11 @@ public class Handler extends AbstractHandler {
         if (expression == null)
             return allInstances;
 
-        final Object compiled = Ognl.parseExpression(expression);
+        final Object compiled = QueryExpression.parse(expression);
         final List<RDSInstance> instances = new ArrayList<>();
 
         for (RDSInstance instance : allInstances) {
-            final Object value = Ognl.getValue(compiled, instance);
+            final Object value = QueryExpression.evaluate(compiled, instance);
             if (value instanceof Boolean && (Boolean) value)
                 instances.add(instance);
         }
