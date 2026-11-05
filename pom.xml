@@ -43,6 +43,7 @@
         <joda-time.version>2.3</joda-time.version>
         <ognl.version>3.0.8</ognl.version>
         <quartz.version>2.2.1</quartz.version>
+        <junit.version>4.13.2</junit.version>
         <maven-compiler-plugin.version>3.1</maven-compiler-plugin.version>
         <maven-shade-plugin.version>2.1</maven-shade-plugin.version>
     </properties>
@@ -165,6 +166,13 @@
             <groupId>org.coursera</groupId>
             <artifactId>dropwizard-metrics-datadog</artifactId>
             <version>1.1.13</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
