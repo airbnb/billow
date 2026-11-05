@@ -3,20 +3,16 @@ package com.airbnb.billow;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.google.common.collect.ImmutableSet;
-import ognl.ArrayPropertyAccessor;
 import ognl.ClassResolver;
-import ognl.ListPropertyAccessor;
-import ognl.MapPropertyAccessor;
 import ognl.MemberAccess;
+import ognl.Node;
 import ognl.Ognl;
 import ognl.OgnlContext;
 import ognl.OgnlException;
-import ognl.OgnlRuntime;
 
 /**
  * Evaluates user-supplied OGNL expressions (the {@code q}/{@code query} and {@code s}/{@code sort}
@@ -33,38 +29,13 @@ import ognl.OgnlRuntime;
  *   <li>only permits access to public, non-static members declared on an allowlist of packages
  *       and classes (Billow's own model classes, the AWS SDK model classes, collections,
  *       Joda-Time and a small set of {@code java.lang} value types);</li>
- *   <li>refuses reflective escape hatches such as {@code getClass()}, and refuses setters,
- *       collection mutators and indexed assignment ({@code tags['k'] = v}) so an expression cannot
- *       alter the shared cache.</li>
+ *   <li>refuses reflective escape hatches such as {@code getClass()}, mutable model methods,
+ *       collection mutators, assignment and dynamic evaluation so an expression cannot alter
+ *       the shared cache.</li>
  * </ul>
- *
- * <p>Notably, OGNL property accessors are registered process-wide, so loading this class makes
- * indexed assignment on maps, lists and arrays fail for every OGNL evaluation in the JVM. Billow's
- * only use of OGNL is this class, so that is the intended effect.
  */
 final class QueryExpression {
     private QueryExpression() {
-    }
-
-    static {
-        OgnlRuntime.setPropertyAccessor(Map.class, new MapPropertyAccessor() {
-            @Override
-            public void setProperty(Map context, Object target, Object name, Object value) throws OgnlException {
-                throw new OgnlException("assignment is not permitted in query expressions");
-            }
-        });
-        OgnlRuntime.setPropertyAccessor(List.class, new ListPropertyAccessor() {
-            @Override
-            public void setProperty(Map context, Object target, Object name, Object value) throws OgnlException {
-                throw new OgnlException("assignment is not permitted in query expressions");
-            }
-        });
-        OgnlRuntime.setPropertyAccessor(Object[].class, new ArrayPropertyAccessor() {
-            @Override
-            public void setProperty(Map context, Object target, Object name, Object value) throws OgnlException {
-                throw new OgnlException("assignment is not permitted in query expressions");
-            }
-        });
     }
 
     /** Packages whose classes' members may be accessed. Exact match, no sub-packages. */
@@ -109,6 +80,10 @@ final class QueryExpression {
         "clear", "replace", "replaceAll", "compute", "computeIfAbsent", "computeIfPresent", "merge", "sort"
     );
 
+    private static final ImmutableSet<String> DENIED_NODE_TYPES = ImmutableSet.of(
+        "ognl.ASTAssign", "ognl.ASTEval"
+    );
+
     /**
      * Parses and evaluates {@code expression} against {@code root} in the sandboxed context.
      */
@@ -117,7 +92,17 @@ final class QueryExpression {
     }
 
     static Object parse(String expression) throws OgnlException {
-        return Ognl.parseExpression(expression);
+        final Node node = (Node) Ognl.parseExpression(expression);
+        rejectWritesAndDynamicEvaluation(node);
+        return node;
+    }
+
+    private static void rejectWritesAndDynamicEvaluation(Node node) throws OgnlException {
+        // ASTEval parses a new expression at runtime, bypassing validation of the original tree.
+        if (DENIED_NODE_TYPES.contains(node.getClass().getName()))
+            throw new OgnlException("assignment and dynamic evaluation are not permitted in query expressions");
+        for (int i = 0; i < node.jjtGetNumChildren(); i++)
+            rejectWritesAndDynamicEvaluation(node.jjtGetChild(i));
     }
 
     static OgnlContext newContext(Object root) {
@@ -164,7 +149,24 @@ final class QueryExpression {
             if (member instanceof Method && name.startsWith("set"))
                 return false;
 
-            return isAllowedClass(member.getDeclaringClass());
+            final Class<?> declaringClass = member.getDeclaringClass();
+            if (!isAllowedClass(declaringClass))
+                return false;
+            if (member instanceof Method && isModelClass(declaringClass)) {
+                final Method method = (Method) member;
+                return ((name.startsWith("get") || name.startsWith("is"))
+                    && method.getParameterTypes().length == 0)
+                    || name.equals("equals") || name.equals("hashCode") || name.equals("toString");
+            }
+            return true;
+        }
+
+        private static boolean isModelClass(Class<?> clazz) {
+            final Package pkg = clazz.getPackage();
+            if (pkg == null)
+                return false;
+            final String name = pkg.getName();
+            return "com.airbnb.billow".equals(name) || ALLOWED_PACKAGE_PATTERN.matcher(name).matches();
         }
 
         static boolean isAllowedClass(Class<?> clazz) {
@@ -180,6 +182,10 @@ final class QueryExpression {
 
             if ("java.lang".equals(packageName))
                 return ALLOWED_JAVA_LANG_CLASSES.contains(clazz);
+            if (clazz == org.joda.time.base.BaseDateTime.class
+                || clazz == org.joda.time.base.AbstractDateTime.class
+                || clazz == org.joda.time.base.AbstractInstant.class)
+                return true;
             if (ALLOWED_PACKAGES.contains(packageName))
                 return true;
             return ALLOWED_PACKAGE_PATTERN.matcher(packageName).matches();

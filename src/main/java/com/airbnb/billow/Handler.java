@@ -3,6 +3,7 @@ package com.airbnb.billow;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -432,24 +433,22 @@ public class Handler extends AbstractHandler {
             return set;
 
         final Object compiled = QueryExpression.parse(expression);
+        final List<Map.Entry<T, Object>> keyed = new ArrayList<>(set.size());
+        for (T item : set)
+            keyed.add(new AbstractMap.SimpleImmutableEntry<>(item, QueryExpression.evaluate(compiled, item)));
 
-        final ArrayList<T> result = new ArrayList<>(set);
-        Collections.sort(result, new Comparator<T>() {
-            public int compare(T o1, T o2) {
-                try {
-                    final Object v1 = QueryExpression.evaluate(compiled, o1);
-                    final Object v2 = QueryExpression.evaluate(compiled, o2);
-
-                    if (v1 instanceof Comparable) {
-                        return ((Comparable) v1).compareTo(v2);
-                    }
-                } catch (OgnlException e) {
-                    return 0;
-                }
+        Collections.sort(keyed, new Comparator<Map.Entry<T, Object>>() {
+            public int compare(Map.Entry<T, Object> first, Map.Entry<T, Object> second) {
+                final Object value = first.getValue();
+                if (value instanceof Comparable)
+                    return ((Comparable) value).compareTo(second.getValue());
                 return 0;
             }
         });
 
+        final ArrayList<T> result = new ArrayList<>(keyed.size());
+        for (Map.Entry<T, Object> entry : keyed)
+            result.add(entry.getKey());
         return result;
     }
 
